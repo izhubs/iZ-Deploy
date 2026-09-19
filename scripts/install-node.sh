@@ -91,5 +91,16 @@ systemctl daemon-reload
 systemctl enable --now izdeploy-agent.service
 
 echo "=== [6/6] Installation Complete! ==="
+if [ -n "${GH_USER:-}" ] && [ -n "${GH_PAT:-}" ]; then
+    echo "Attempting automated GitHub Container Registry login..."
+    echo "${GH_PAT}" | docker login ghcr.io -u "${GH_USER}" --password-stdin || echo "WARNING: GHCR login failed."
+fi
+
 echo "The iZ-Deploy agent is now running on port 8098."
 echo "Check status with: systemctl status izdeploy-agent"
+echo ""
+echo "========================================================================="
+echo "🤖 AI AGENT HANDOFF: COPY AND PASTE THE LINK BELOW TO YOUR AI ASSISTANT"
+echo "========================================================================="
+echo "Link: https://raw.githubusercontent.com/izhubs/iZ-Deploy/main/AI_PROMPT.md"
+echo ""
