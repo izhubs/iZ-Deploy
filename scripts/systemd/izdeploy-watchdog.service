@@ -1,0 +1,11 @@
+[Unit]
+Description=izDeploy Break-Glass Rescue Watchdog
+Documentation=https://github.com/izhubs/izdeploy
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/izdeploy-watchdog
+StandardOutput=journal
+StandardError=journal

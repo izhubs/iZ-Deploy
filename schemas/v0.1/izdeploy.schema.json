@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/izhubs/izdeploy/main/schemas/v0.1/izdeploy.schema.json",
+  "title": "izDeploy Application Configuration",
+  "description": "Configuration specification for applications deployed with izDeploy v0.1",
+  "type": "object",
+  "required": [
+    "name",
+    "port",
+    "image"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Unique identifier for the application (DNS-safe lowercase alphanumeric and hyphens)"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Internal TCP port exposed by the application container"
+    },
+    "image": {
+      "type": "string",
+      "description": "Container image reference (e.g. ghcr.io/org/app:tag or docker.io/library/app:tag)"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Non-sensitive runtime environment variables"
+    },
+    "healthcheck": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "default": "/up"
+        },
+        "interval_seconds": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1
+        },
+        "max_retries": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

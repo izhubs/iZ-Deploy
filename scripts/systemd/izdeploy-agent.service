@@ -1,0 +1,21 @@
+[Unit]
+Description=izDeploy Node Agent Daemon
+Documentation=https://github.com/izhubs/izdeploy
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=izdeploy
+Group=izdeploy
+WorkingDirectory=/var/lib/izdeploy
+ExecStart=/usr/local/bin/izdeploy-agent
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
