@@ -255,10 +255,8 @@ func SwapContainer(
 		}
 
 		// Deregister target v1 from proxy
-		if err := client.Remove(ctx, spec.Service, oldTarget); err != nil {
-			// Non-fatal logging: Target v2 is already healthy and active
-			// We proceed with hook execution
-		}
+		// Non-fatal: Target v2 is already healthy and active
+		_ = client.Remove(ctx, spec.Service, oldTarget)
 
 		// Execute teardown hook (e.g. stop docker container v1)
 		if onDrainV1 != nil {

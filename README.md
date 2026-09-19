@@ -407,6 +407,12 @@ izdeploy logs --local --app storefront
 
 ---
 
+## Performance Benchmarks
+
+izDeploy is designed to be exceptionally lightweight. See the [RAM Comparison Benchmark](benchmark/ram_comparison.md) against Coolify and Dokploy.
+
+---
+
 ## Repository Layout
 
 ```

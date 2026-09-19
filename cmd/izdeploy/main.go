@@ -39,7 +39,8 @@ Available Commands:
   deploy  Execute container image deployment with pre-deploy lock integrity verification
   mcp     Launch the stdio Model Context Protocol server exposing 5 deployment tools
   status  Inspect runtime state, container health, and resource consumption
-  logs    Stream or inspect container logs for an application`,
+  logs    Stream or inspect container logs for an application
+  auth    Authenticate with GitHub using Device Flow`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -57,6 +58,7 @@ Available Commands:
 	rootCmd.AddCommand(newLogsCmd())
 	rootCmd.AddCommand(newSecretCmd())
 	rootCmd.AddCommand(newVolumeCmd())
+	rootCmd.AddCommand(newAuthCmd())
 
 	return rootCmd
 }

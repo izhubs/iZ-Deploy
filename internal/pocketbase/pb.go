@@ -9,6 +9,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/models"
 	"github.com/pocketbase/pocketbase/tools/migrate"
@@ -35,6 +36,11 @@ func NewEngine(dataDir string) (*Engine, error) {
 	pbApp := pocketbase.NewWithConfig(pocketbase.Config{
 		DefaultDataDir:  dataDir,
 		HideStartBanner: true,
+	})
+
+	pbApp.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		e.App.Settings().Meta.AppName = "izDeploy Cloud"
+		return nil
 	})
 
 	if err := pbApp.Bootstrap(); err != nil {

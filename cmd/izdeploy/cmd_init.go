@@ -90,6 +90,7 @@ func newInitCmd() *cobra.Command {
 			cmd.Printf("  [+] Lockfile:  %s (infra_hash: %s)\n", lockPath, lock.InfraHash[:8])
 			cmd.Printf("  [+] AI Bridge: %s\n", contract.CursorRulePath)
 			cmd.Printf("  [+] AI Bridge: %s\n", contract.ClaudeGuidePath)
+			cmd.Printf("  [+] AI Bridge: %s\n", contract.WindsurfRulePath)
 			return nil
 		},
 	}

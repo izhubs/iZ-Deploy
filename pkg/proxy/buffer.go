@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -74,7 +73,6 @@ type BufferedProxy struct {
 	resolver TargetResolver
 	client   *http.Client
 	metrics  BufferMetrics
-	mu       sync.RWMutex
 }
 
 // NewBufferedProxy initializes a reverse proxy handler wrapped with connection buffering and retry policies.

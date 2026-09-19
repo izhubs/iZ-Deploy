@@ -18,7 +18,10 @@ const CursorRulePath = ".cursor/rules/izdeploy.mdc"
 // ClaudeGuidePath specifies standard relative path for Claude Code workspace instruction.
 const ClaudeGuidePath = "CLAUDE.md"
 
-// GenerateBridgeFiles creates .cursor/rules/izdeploy.mdc and CLAUDE.md in target project directory.
+// WindsurfRulePath specifies standard relative path for Windsurf IDE rule manifests.
+const WindsurfRulePath = ".windsurfrules"
+
+// GenerateBridgeFiles creates .cursor/rules/izdeploy.mdc, CLAUDE.md, and .windsurfrules in target project directory.
 //
 // Business rule: Installs strict AI guardrails defining what is agent-actionable and what is infra-locked.
 //
@@ -26,9 +29,11 @@ const ClaudeGuidePath = "CLAUDE.md"
 func GenerateBridgeFiles(rootDir string, cfg *AppConfig) error {
 	cursorPath := filepath.Join(rootDir, CursorRulePath)
 	claudePath := filepath.Join(rootDir, ClaudeGuidePath)
+	windsurfPath := filepath.Join(rootDir, WindsurfRulePath)
 
 	cursorContent := generateCursorRuleContent(cfg)
 	claudeContent := generateClaudeGuideContent(cfg)
+	windsurfContent := generateWindsurfRuleContent(cfg)
 
 	if err := os.MkdirAll(filepath.Dir(cursorPath), 0755); err != nil {
 		return fmt.Errorf("failed creating cursor rules directory: %w", err)
@@ -40,6 +45,10 @@ func GenerateBridgeFiles(rootDir string, cfg *AppConfig) error {
 
 	if err := os.WriteFile(claudePath, []byte(claudeContent), 0644); err != nil {
 		return fmt.Errorf("failed writing claude guide %s: %w", claudePath, err)
+	}
+
+	if err := os.WriteFile(windsurfPath, []byte(windsurfContent), 0644); err != nil {
+		return fmt.Errorf("failed writing windsurf rule %s: %w", windsurfPath, err)
 	}
 
 	return nil
@@ -114,6 +123,39 @@ Configured Internal Port: %d
 ### Immutable Infrastructure Rules
 - Never change internal container port (%d) or memory boundaries without developer instruction.
 - Never edit or tamper with '.agent/izdeploy.lock' directly; use 'izdeploy lint' or 'izdeploy deploy --force'.
+
+### Diagnostic Error Gating (RFC 7807)
+- Errors returned by izDeploy CLI and MCP tools follow RFC 7807:
+  - "agent_actionable: true" indicates application/code-level issues (syntax error, missing files). AI should fix.
+  - "agent_actionable: false" indicates host-level issues (OOM 137, network port collision, proxy 502). AI must defer to user.
+`, appName, appPort, appPort)
+}
+
+// generateWindsurfRuleContent renders standard .windsurfrules instructions.
+func generateWindsurfRuleContent(cfg *AppConfig) string {
+	appName := "app"
+	appPort := 3000
+	if cfg != nil {
+		if cfg.Name != "" {
+			appName = cfg.Name
+		}
+		if cfg.Port > 0 {
+			appPort = cfg.Port
+		}
+	}
+
+	return fmt.Sprintf(`# izDeploy Architecture & AI Contract (Windsurf)
+
+Application: %s
+Configured Internal Port: %d
+
+## Guidelines for AI Pair Programming
+- Contract file: .agent/izdeploy.json
+- Lockfile: .agent/izdeploy.lock
+
+### Immutable Infrastructure Rules
+- Never change internal container port (%d) or memory boundaries without developer instruction.
+- Never edit or tamper with .agent/izdeploy.lock directly; use izdeploy lint or izdeploy deploy --force.
 
 ### Diagnostic Error Gating (RFC 7807)
 - Errors returned by izDeploy CLI and MCP tools follow RFC 7807:
