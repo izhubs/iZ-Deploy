@@ -1,0 +1,8 @@
+{
+  "version": "v0.1",
+  "app": "my-nextjs-app",
+  "port": 3000,
+  "infra_hash": "e01eb985d0d48342effaffe6f385905d7c650aea34e4d12b8140a1d0f9769f4e",
+  "config_hash": "1faee80bd0b46141421b6df006689b1e6a4e5aa0de6b152edabfc15decec8945",
+  "updated_at": "2026-09-19T02:59:40.9962038Z"
+}

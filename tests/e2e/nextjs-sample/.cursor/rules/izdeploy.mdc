@@ -1,0 +1,28 @@
+---
+description: izDeploy configuration governance and RFC 7807 error gating rules
+globs: .agent/*, *.json, Dockerfile
+alwaysApply: true
+---
+
+# izDeploy AI Contract Governance
+
+Application: my-nextjs-app
+Internal Port: 3000
+Configuration: .agent/izdeploy.json
+Lockfile: .agent/izdeploy.lock
+
+## Critical Guardrails
+1. INFRASTRUCTURE LOCK:
+   - DO NOT alter "port", "routes", "volumes", or "resources" in .agent/izdeploy.json.
+   - Any modification to infrastructure fields requires explicit user consent and '--force'.
+   - The lockfile .agent/izdeploy.lock verifies SHA-256 integrity during pre-deploy.
+
+2. RFC 7807 DIAGNOSTICS:
+   - When receiving an RFC 7807 Problem Details response:
+     * If "agent_actionable" is true: inspect code, syntax, and build scripts to resolve the failure.
+     * If "agent_actionable" is false: STOP. Do not modify infrastructure or local ports. Inform the developer.
+
+3. WORKFLOW COMMANDS:
+   - Validate config: 'izdeploy lint'
+   - Check status: 'izdeploy status'
+   - Deploy: 'izdeploy deploy'

@@ -1,0 +1,5 @@
+{
+  "name": "my-nextjs-app",
+  "port": 3000,
+  "image": "ghcr.io/izhubs/nextjs-sample:latest"
+}
