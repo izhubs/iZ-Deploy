@@ -84,6 +84,58 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 	if !strings.Contains(buf.String(), "Deployment successful") {
 		t.Errorf("unexpected deploy output: %s", buf.String())
 	}
+
+	// 5. Test 'logs' command (auto-detect app name from .agent/izdeploy.json)
+	rootCmd = newRootCmd()
+	buf.Reset()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"logs", "--tail", "20", "--local"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("logs command failed: %v, output: %s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "e2e-app") {
+		t.Errorf("expected logs output to contain 'e2e-app', got: %s", buf.String())
+	}
+}
+
+func TestCLI_LogsSubcommand(t *testing.T) {
+	tempDir := t.TempDir()
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed getting cwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed chdir: %v", err)
+	}
+
+	// Case 1: Error when no config exists and no --app provided
+	rootCmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"logs"})
+
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected error when no app and no config, got nil")
+	}
+
+	// Case 2: Succeed when --app is explicitly passed with --local
+	rootCmd = newRootCmd()
+	buf.Reset()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"logs", "--app", "explicit-app", "--tail", "10", "--local"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("logs with explicit --app failed: %v, output: %s", err, buf.String())
+	}
+	if len(buf.String()) == 0 {
+		t.Errorf("expected non-empty log output")
+	}
 }
 
 func TestCLI_Version(t *testing.T) {

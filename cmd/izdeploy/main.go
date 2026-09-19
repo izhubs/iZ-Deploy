@@ -9,7 +9,11 @@ import (
 )
 
 // Version specifies the binary release version injected at link time.
-const Version = "0.1.0-dev"
+var (
+	Version = "0.1.0-dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
 
 // Exit status constants.
 const (
@@ -34,7 +38,8 @@ Available Commands:
   lint    Validate application contract syntax, semantic constraints, and SHA-256 lockfile
   deploy  Execute container image deployment with pre-deploy lock integrity verification
   mcp     Launch the stdio Model Context Protocol server exposing 5 deployment tools
-  status  Inspect runtime state, container health, and resource consumption`,
+  status  Inspect runtime state, container health, and resource consumption
+  logs    Stream or inspect container logs for an application`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -48,6 +53,7 @@ Available Commands:
 	rootCmd.AddCommand(newDeployCmd())
 	rootCmd.AddCommand(newMcpCmd())
 	rootCmd.AddCommand(newStatusCmd())
+	rootCmd.AddCommand(newLogsCmd())
 
 	return rootCmd
 }

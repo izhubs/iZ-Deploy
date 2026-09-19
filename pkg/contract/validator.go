@@ -121,6 +121,30 @@ func Validate(cfg *AppConfig) error {
 		}
 	}
 
+	// Validate Build if supplied
+	if cfg.Build != nil {
+		if cfg.Build.Mode != "" {
+			switch cfg.Build.Mode {
+			case "github-actions", "host", "local", "cloud":
+			default:
+				errs = append(errs, ValidationError{
+					Field:  "build.mode",
+					Reason: "build mode must be one of: github-actions, host, local, cloud",
+				})
+			}
+		}
+		if cfg.Build.Builder != "" {
+			switch cfg.Build.Builder {
+			case "nixpacks", "dockerfile":
+			default:
+				errs = append(errs, ValidationError{
+					Field:  "build.builder",
+					Reason: "build builder must be one of: nixpacks, dockerfile",
+				})
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return errs
 	}

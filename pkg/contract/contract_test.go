@@ -42,6 +42,34 @@ func TestParseConfigBytes_Valid(t *testing.T) {
 	}
 }
 
+func TestParseConfigBytes_BuildSpec(t *testing.T) {
+	raw := []byte(`{
+		"name": "build-app",
+		"port": 8080,
+		"image": "ghcr.io/org/build-app:latest",
+		"build": {
+			"mode": "github-actions",
+			"builder": "nixpacks"
+		}
+	}`)
+
+	cfg, err := ParseConfigBytes(raw)
+	if err != nil {
+		t.Fatalf("unexpected error parsing config with build: %v", err)
+	}
+
+	if cfg.Build == nil {
+		t.Fatal("expected cfg.Build to be non-nil")
+	}
+	if cfg.Build.Mode != "github-actions" || cfg.Build.Builder != "nixpacks" {
+		t.Errorf("unexpected build values: mode=%s, builder=%s", cfg.Build.Mode, cfg.Build.Builder)
+	}
+
+	if err := Validate(cfg); err != nil {
+		t.Errorf("validation failed on valid build config: %v", err)
+	}
+}
+
 func TestParseConfigBytes_SyntaxError(t *testing.T) {
 	raw := []byte("{\n  \"name\": \"app\",\n  \"port\": 3000,\n}")
 
@@ -142,6 +170,45 @@ func TestValidate_Constraints(t *testing.T) {
 				Port:    8080,
 				Image:   "app:latest",
 				Volumes: []string{"bad-volume-no-colon"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Valid Build Spec",
+			cfg: AppConfig{
+				Name:  "app",
+				Port:  8080,
+				Image: "app:latest",
+				Build: &BuildSpec{
+					Mode:    "github-actions",
+					Builder: "nixpacks",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid Build Mode",
+			cfg: AppConfig{
+				Name:  "app",
+				Port:  8080,
+				Image: "app:latest",
+				Build: &BuildSpec{
+					Mode:    "invalid-mode",
+					Builder: "nixpacks",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid Build Builder",
+			cfg: AppConfig{
+				Name:  "app",
+				Port:  8080,
+				Image: "app:latest",
+				Build: &BuildSpec{
+					Mode:    "host",
+					Builder: "invalid-builder",
+				},
 			},
 			wantErr: true,
 		},

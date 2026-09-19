@@ -11,8 +11,12 @@ import (
 	"time"
 )
 
-// Version specifies the watchdog release version.
-const Version = "0.1.0-dev"
+// Version specifies the watchdog release version injected at link time.
+var (
+	Version = "0.1.0-dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
 
 // Exit status constants.
 const (

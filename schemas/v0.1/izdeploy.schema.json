@@ -33,6 +33,32 @@
       },
       "description": "Non-sensitive runtime environment variables"
     },
+    "build": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "github-actions",
+            "host",
+            "local",
+            "cloud"
+          ],
+          "default": "github-actions",
+          "description": "Build pipeline execution environment (github-actions, host, local, cloud)"
+        },
+        "builder": {
+          "type": "string",
+          "enum": [
+            "nixpacks",
+            "dockerfile"
+          ],
+          "default": "nixpacks",
+          "description": "Container image builder engine (nixpacks, dockerfile)"
+        }
+      },
+      "additionalProperties": false
+    },
     "healthcheck": {
       "type": "object",
       "properties": {

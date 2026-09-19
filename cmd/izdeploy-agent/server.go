@@ -48,6 +48,8 @@ func NewAgentServer(listenAddr string, storage *pocketbase.Engine, dockerClient 
 	mux.HandleFunc("/restart", server.handleRestart)
 	mux.HandleFunc("/logs", server.handleLogs)
 	mux.HandleFunc("/env", server.handleEnv)
+	mux.HandleFunc("/webhook", server.handleWebhook)
+	mux.HandleFunc("/webhook/deploy", server.handleWebhook)
 
 	server.httpServer = &http.Server{
 		Addr:         listenAddr,

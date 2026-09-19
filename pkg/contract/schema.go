@@ -16,11 +16,23 @@ const (
 	DefaultHealthcheckRetries  = 10
 	DefaultResourceMemoryMB    = 256
 	DefaultResourceCPUCores    = 1.0
+	DefaultBuildMode           = "github-actions"
+	DefaultBuildBuilder        = "nixpacks"
 	MinPort                    = 1
 	MaxPort                    = 65535
 	MinMemoryMB                = 32
 	MinCPUCores                = 0.1
 )
+
+// BuildSpec defines application build strategy and tooling.
+//
+// Business rule: Offloads builds to external CI/CD or executes local/host builds.
+//
+// @ai-constraint: Mode defaults to "github-actions", builder defaults to "nixpacks".
+type BuildSpec struct {
+	Mode    string `json:"mode,omitempty"`    // "github-actions" (default), "host", "local", "cloud"
+	Builder string `json:"builder,omitempty"` // "nixpacks" (default), "dockerfile"
+}
 
 // AppConfig represents the root application contract schema (.agent/izdeploy.json).
 //
@@ -33,6 +45,7 @@ type AppConfig struct {
 	Port        int               `json:"port"`
 	Image       string            `json:"image"`
 	Env         map[string]string `json:"env,omitempty"`
+	Build       *BuildSpec        `json:"build,omitempty"`
 	Healthcheck *HealthcheckSpec  `json:"healthcheck,omitempty"`
 	Resources   *ResourceLimits   `json:"resources,omitempty"`
 	Routes      []string          `json:"routes,omitempty"`
@@ -100,6 +113,15 @@ func (c *AppConfig) ApplyDefaults() {
 		}
 		if c.Resources.CPUCores <= 0 {
 			c.Resources.CPUCores = DefaultResourceCPUCores
+		}
+	}
+
+	if c.Build != nil {
+		if c.Build.Mode == "" {
+			c.Build.Mode = DefaultBuildMode
+		}
+		if c.Build.Builder == "" {
+			c.Build.Builder = DefaultBuildBuilder
 		}
 	}
 

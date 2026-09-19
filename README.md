@@ -57,6 +57,7 @@ The `izdeploy` CLI controls the project lifecycle, configuration validation, and
 | `lint` | `izdeploy lint [--config <path>] [--lock <path>] [--json]` | Validates schema syntax, DNS names, port bounds (1-65535), and SHA-256 infrastructure lockfile signatures. Returns exit code 0 on success, 1 on failure. |
 | `deploy` | `izdeploy deploy [--local] [--force]` | Dispatches container deployment. The `--local` flag builds via local Docker engine and pushes to registry; `--force` bypasses lockfile verification. |
 | `status` | `izdeploy status [--json]` | Queries the deployment status, container uptime, memory consumption, and health check state. |
+| `logs` | `izdeploy logs [--app <name>] [--tail <n>] [--follow / -f] [--config <path>]` | Streams or inspects container stdout/stderr logs from daemon or local runtime. |
 | `mcp` | `izdeploy mcp` | Starts the stdio-based Model Context Protocol (MCP) server for direct IDE integration. |
 
 #### Example: Initializing a Node.js / Next.js Service
@@ -250,6 +251,8 @@ The daemon provides internal management endpoints on `127.0.0.1:8098`:
 - `POST /restart`: Graceful restart endpoint.
 - `GET /logs`: Ring-buffered log stream endpoint.
 - `POST /env`: Runtime environment variable mutation.
+- `POST /webhook`: Authenticated CI/CD webhook receiver endpoint.
+- `POST /webhook/deploy`: Alias webhook deployment endpoint.
 
 ---
 
@@ -273,6 +276,137 @@ Copy `templates/github/deploy.yml` into `.github/workflows/deploy.yml` in your r
 1. Generates an OCI container image using Nixpacks (no manual Dockerfile required).
 2. Pushes the image to GitHub Container Registry (`ghcr.io`).
 3. Sends a webhook notification to your izDeploy agent to execute an atomic sub-second swap.
+
+---
+
+### 8. Multi-App Deployment on a Single VPS
+
+izDeploy executes multiple independent applications concurrently on a single Linux server without port collisions or routing conflicts.
+
+#### Architectural Separation
+- **State Store (PocketBase/SQLite)**: Applications maintain distinct records in the embedded database (`apps` collection). Each record isolates its container reference, image tag, internal port binding, and environment variables.
+- **SNI Reverse Proxy (`kamal-proxy`)**: All external HTTP/HTTPS traffic enters through `kamal-proxy` on ports 80 and 443. The proxy inspects incoming TLS Server Name Indication (SNI) and Host headers to route traffic to the corresponding application container.
+- **Automated TLS Certificates**: `kamal-proxy` handles ACME HTTP-01 and TLS-ALPN-01 challenges to provision and renew Let's Encrypt certificates independently per domain.
+
+#### Multi-App Configuration Example
+
+**App A (E-Commerce Storefront):**
+`.agent/izdeploy.json`:
+```json
+{
+  "name": "storefront",
+  "port": 3000,
+  "image": "ghcr.io/company/storefront:v1.2.0",
+  "routes": ["shop.example.com"]
+}
+```
+
+**App B (Internal API Service):**
+`.agent/izdeploy.json`:
+```json
+{
+  "name": "billing-api",
+  "port": 8080,
+  "image": "ghcr.io/company/billing-api:v2.0.1",
+  "routes": ["billing.example.com"]
+}
+```
+
+Both applications deploy to the same host. `kamal-proxy` routes `https://shop.example.com` to container `storefront` on port 3000 and `https://billing.example.com` to container `billing-api` on port 8080, each with its own valid SSL certificate.
+
+---
+
+### 9. Build & Deployment Modes
+
+izDeploy supports four build and deployment strategies configured via the `build.mode` property in `.agent/izdeploy.json` or CLI flags:
+
+| Mode | Target Execution Environment | Recommended Use Case |
+|---|---|---|
+| `github-actions` (Default) | GitHub Actions Hosted Runner | Cost-efficient VPS ($4/month, 1GB RAM). Offloads CPU and memory spikes during builds, preventing kernel OOM killer invocation. |
+| `host` | VPS Node Runtime | Instances with >= 2GB–4GB RAM. Builds directly via Nixpacks or Dockerfile on the target server. |
+| `local` | Developer Workstation | Fast development iterations. Compiles image locally via Docker engine (`izdeploy deploy --local`). |
+| `cloud` | Centralized Build Service | Monorepos or teams utilizing dedicated remote image builders. |
+
+#### Configuring Build Strategy in `.agent/izdeploy.json`
+
+```json
+{
+  "name": "analytics-worker",
+  "port": 5000,
+  "image": "ghcr.io/company/analytics-worker:latest",
+  "build": {
+    "mode": "github-actions",
+    "builder": "nixpacks"
+  }
+}
+```
+
+Supported `builder` options:
+- `nixpacks` (default): Automatic language, runtime, and dependency detection without Dockerfiles.
+- `dockerfile`: Standard multi-stage container builds using local `Dockerfile`.
+
+---
+
+### 10. Automated Git Webhook Deployment
+
+The `izdeploy-agent` daemon exposes an authenticated webhook receiver for zero-downtime deployments triggered by GitHub, GitLab, or Git webhooks.
+
+#### Endpoint Specifications
+- Endpoints: `POST http://<VPS_IP>:8098/webhook` and `POST http://<VPS_IP>:8098/webhook/deploy`
+- Authentication: When `IZDEPLOY_WEBHOOK_SECRET` is set in the daemon environment, all requests must provide a matching token via:
+  - Header: `Authorization: Bearer <secret>`
+  - Header: `X-Izdeploy-Token: <secret>`
+- Security Gate: Missing or invalid credentials return `HTTP 401 Unauthorized` with RFC 7807 Problem Details (`application/problem+json`).
+
+#### Webhook Payload Schema
+
+```json
+{
+  "app": "storefront",
+  "image": "ghcr.io/company/storefront:sha-9f8e7d6",
+  "port": 3000,
+  "mode": "pull"
+}
+```
+
+#### GitHub Webhook Setup
+1. In your GitHub repository, navigate to **Settings** > **Webhooks** > **Add webhook**.
+2. **Payload URL**: `http://<VPS_IP>:8098/webhook`
+3. **Content type**: `application/json`
+4. **Secret**: Value matching `IZDEPLOY_WEBHOOK_SECRET` on your VPS.
+5. **Events**: Select *Just the push event*.
+
+---
+
+### 11. Live Log Streaming (`izdeploy logs`)
+
+Inspect or stream container logs for deployed services with automatic ANSI terminal escape sequence stripping.
+
+#### CLI Syntax
+
+```bash
+izdeploy logs [--app <name>] [--tail <n>] [--follow / -f] [--config <path>] [--local]
+```
+
+#### Common Invocations
+
+```bash
+# Stream live logs continuously for a specific service
+izdeploy logs -f --app storefront
+
+# Inspect the last 100 log lines for the application defined in current directory
+izdeploy logs -n 100
+
+# Query the local offline backend directly (bypassing daemon HTTP)
+izdeploy logs --local --app storefront
+```
+
+#### Resolution Logic
+1. **Application Detection**: If `--app` is omitted, the CLI reads `name` from `.agent/izdeploy.json`.
+2. **Connection Hierarchy**:
+   - Queries `http://127.0.0.1:8098/logs?app=<name>&tail=<n>` on the host daemon.
+   - Falls back to `LocalBackend` if the daemon is offline or connection is refused.
+3. **Buffer Management**: In follow mode (`-f`), polls for runtime updates every 2 seconds until `SIGINT` or context cancellation.
 
 ---
 

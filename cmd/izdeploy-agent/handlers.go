@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/izhubs/izdeploy/internal/pocketbase"
+	"github.com/izhubs/izdeploy/pkg/diagnostics"
 	"github.com/izhubs/izdeploy/pkg/docker"
 )
 
@@ -35,6 +38,14 @@ type RestartRequest struct {
 type EnvRequest struct {
 	App string            `json:"app"`
 	Env map[string]string `json:"env"`
+}
+
+// WebhookPayload defines the inbound JSON body received from CI/CD webhooks.
+type WebhookPayload struct {
+	App   string `json:"app"`
+	Image string `json:"image"`
+	Port  int    `json:"port"`
+	Mode  string `json:"mode"`
 }
 
 func (s *AgentServer) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -344,4 +355,124 @@ func writeError(w http.ResponseWriter, statusCode int, message string) {
 		"error":   message,
 		"status":  statusCode,
 	})
+}
+
+// handleWebhook processes incoming deployment webhooks from GitHub Actions and git servers.
+//
+// Business rule: Enforces secret token match if IZDEPLOY_WEBHOOK_SECRET is set; returns RFC 7807 problem details on 401.
+//
+// @ai-constraint: Never disclose stored webhook secret in error responses.
+func (s *AgentServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	secret := os.Getenv("IZDEPLOY_WEBHOOK_SECRET")
+	if secret != "" {
+		token := ""
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if authHeader != "" {
+			token = authHeader
+		}
+
+		if token == "" {
+			token = r.Header.Get("X-Izdeploy-Token")
+		}
+
+		if token != secret {
+			prob := diagnostics.NewProblem(
+				diagnostics.UrnPrefix+"unauthorized",
+				"Unauthorized",
+				http.StatusUnauthorized,
+				"Invalid or missing webhook authentication token",
+				false,
+				"ERR_UNAUTHORIZED",
+			)
+			writeProblem(w, prob)
+			return
+		}
+	}
+
+	var payload WebhookPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		prob := diagnostics.NewProblem(
+			diagnostics.UrnPrefix+"invalid-payload",
+			"Bad Request",
+			http.StatusBadRequest,
+			"Invalid JSON request body: "+err.Error(),
+			false,
+			"ERR_INVALID_PAYLOAD",
+		)
+		writeProblem(w, prob)
+		return
+	}
+
+	if payload.App == "" || payload.Image == "" {
+		prob := diagnostics.NewProblem(
+			diagnostics.UrnPrefix+"invalid-payload",
+			"Bad Request",
+			http.StatusBadRequest,
+			"Fields 'app' and 'image' are required",
+			false,
+			"ERR_INVALID_PAYLOAD",
+		)
+		writeProblem(w, prob)
+		return
+	}
+
+	port := payload.Port
+	if port <= 0 {
+		appRecord, err := s.storage.GetApp(payload.App)
+		if err == nil && appRecord.Port > 0 {
+			port = appRecord.Port
+		} else {
+			prob := diagnostics.NewProblem(
+				diagnostics.UrnPrefix+"invalid-payload",
+				"Bad Request",
+				http.StatusBadRequest,
+				"Field 'port' must be a valid positive port number",
+				false,
+				"ERR_INVALID_PAYLOAD",
+			)
+			writeProblem(w, prob)
+			return
+		}
+	}
+
+	deployReq := DeployRequest{
+		Name:  payload.App,
+		Image: payload.Image,
+		Port:  port,
+	}
+
+	containerID, err := s.executeDeployment(r.Context(), deployReq)
+	if err != nil {
+		prob := diagnostics.NewProblem(
+			diagnostics.UrnPrefix+"deploy-failure",
+			"Deployment Execution Failed",
+			http.StatusInternalServerError,
+			err.Error(),
+			false,
+			diagnostics.CodeDeploymentFailure,
+		)
+		writeProblem(w, prob)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":      true,
+		"app":          payload.App,
+		"container_id": containerID,
+		"status":       "deployed",
+	})
+}
+
+// writeProblem serializes RFC 7807 Problem Details to the client.
+func writeProblem(w http.ResponseWriter, prob diagnostics.ProblemDetails) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(prob.Status)
+	_ = json.NewEncoder(w).Encode(prob)
 }

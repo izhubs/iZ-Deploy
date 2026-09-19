@@ -140,3 +140,101 @@ func TestServerDeployValidation(t *testing.T) {
 		t.Errorf("expected 400 Bad Request on invalid deploy payload, got %d", rec.Code)
 	}
 }
+
+func TestServerWebhook_Authentication(t *testing.T) {
+	server, engine := setupTestServer(t)
+	defer func() { _ = engine.Close() }()
+
+	t.Setenv("IZDEPLOY_WEBHOOK_SECRET", "super-secret-token")
+
+	payload := WebhookPayload{
+		App:   "my-app",
+		Image: "ghcr.io/org/my-app:v1.0.0",
+		Port:  3000,
+		Mode:  "pull",
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	// Case 1: Missing Token -> 401 Unauthorized with RFC 7807
+	reqNoToken := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payloadBytes))
+	recNoToken := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recNoToken, reqNoToken)
+
+	if recNoToken.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized on missing token, got %d", recNoToken.Code)
+	}
+	if ct := recNoToken.Header().Get("Content-Type"); ct != "application/problem+json" {
+		t.Errorf("expected application/problem+json, got %s", ct)
+	}
+	var probResp map[string]any
+	if err := json.NewDecoder(recNoToken.Body).Decode(&probResp); err != nil {
+		t.Fatalf("failed decoding problem details: %v", err)
+	}
+	if probResp["error_code"] != "ERR_UNAUTHORIZED" || probResp["status"] != float64(401) {
+		t.Errorf("unexpected problem details body: %+v", probResp)
+	}
+
+	// Case 2: Wrong Token -> 401 Unauthorized
+	reqWrong := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payloadBytes))
+	reqWrong.Header.Set("Authorization", "Bearer invalid-token")
+	recWrong := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recWrong, reqWrong)
+
+	if recWrong.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized on wrong token, got %d", recWrong.Code)
+	}
+
+	// Case 3: Valid Token via Authorization: Bearer <secret> on /webhook
+	reqBearer := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payloadBytes))
+	reqBearer.Header.Set("Authorization", "Bearer super-secret-token")
+	recBearer := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recBearer, reqBearer)
+
+	// Since docker is mock/nil, execution reaches deployment phase (non-401)
+	if recBearer.Code == http.StatusUnauthorized {
+		t.Errorf("expected authentication success with valid Bearer token, got 401")
+	}
+
+	// Case 4: Valid Token via X-Izdeploy-Token on /webhook/deploy
+	reqHeader := httptest.NewRequest(http.MethodPost, "/webhook/deploy", bytes.NewReader(payloadBytes))
+	reqHeader.Header.Set("X-Izdeploy-Token", "super-secret-token")
+	recHeader := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recHeader, reqHeader)
+
+	if recHeader.Code == http.StatusUnauthorized {
+		t.Errorf("expected authentication success with X-Izdeploy-Token, got 401")
+	}
+}
+
+func TestServerWebhook_Validation(t *testing.T) {
+	server, engine := setupTestServer(t)
+	defer func() { _ = engine.Close() }()
+
+	// Without secret set, requests are allowed through auth gate
+	t.Setenv("IZDEPLOY_WEBHOOK_SECRET", "")
+
+	// Invalid JSON payload -> 400 Bad Request
+	reqInvalidJSON := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader([]byte("{invalid-json")))
+	recInvalidJSON := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recInvalidJSON, reqInvalidJSON)
+	if recInvalidJSON.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for invalid JSON, got %d", recInvalidJSON.Code)
+	}
+
+	// Missing required fields -> 400 Bad Request
+	missingFieldsPayload, _ := json.Marshal(WebhookPayload{App: ""})
+	reqMissing := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(missingFieldsPayload))
+	recMissing := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recMissing, reqMissing)
+	if recMissing.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for missing app/image, got %d", recMissing.Code)
+	}
+
+	// GET method not allowed -> 405
+	reqGet := httptest.NewRequest(http.MethodGet, "/webhook", nil)
+	recGet := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recGet, reqGet)
+	if recGet.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405 Method Not Allowed for GET, got %d", recGet.Code)
+	}
+}
