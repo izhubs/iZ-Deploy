@@ -127,7 +127,7 @@ func TestValidateCertConfig(t *testing.T) {
 			cfg: CertConfig{
 				Domains:       []string{"example.com"},
 				Email:         "admin@example.com",
-				ChallengeType: "DNS-01",
+				ChallengeType: "INVALID-01",
 			},
 			wantErr: true,
 			errType: ErrInvalidChallenge,

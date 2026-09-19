@@ -1,0 +1,49 @@
+{
+  "name": "postgres",
+  "version": "16.0",
+  "description": "PostgreSQL is a powerful, open source object-relational database system.",
+  "type": "database",
+  "requirements": {
+    "min_ram_mb": 512,
+    "min_cpu_cores": 0.5,
+    "recommended_zram": true
+  },
+  "services": [
+    {
+      "container_name": "postgres-db",
+      "image": "postgres:16-alpine",
+      "restart_policy": "always",
+      "volumes": [
+        {
+          "source": "postgres-data",
+          "target": "/var/lib/postgresql/data",
+          "type": "volume"
+        }
+      ],
+      "env_schema": {
+        "POSTGRES_USER": {
+          "type": "string",
+          "default": "postgres",
+          "description": "Superuser name"
+        },
+        "POSTGRES_PASSWORD": {
+          "type": "string",
+          "auto_generate": "secure_random_32",
+          "description": "Superuser password"
+        },
+        "POSTGRES_DB": {
+          "type": "string",
+          "default": "postgres",
+          "description": "Default database name"
+        }
+      },
+      "internal_ports": [5432],
+      "healthcheck": {
+        "command": ["CMD-SHELL", "pg_isready -U postgres"],
+        "interval_seconds": 10,
+        "timeout_seconds": 5,
+        "retries": 5
+      }
+    }
+  ]
+}

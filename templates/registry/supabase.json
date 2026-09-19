@@ -1,0 +1,29 @@
+{
+  "name": "supabase",
+  "version": "1.0",
+  "description": "Supabase is an open source Firebase alternative. (Includes Studio, GoTrue, PostgREST, Realtime, etc.)",
+  "type": "baas",
+  "requirements": {
+    "min_ram_mb": 2048,
+    "min_cpu_cores": 2.0,
+    "warning": "This stack launches 10+ containers. Deploying on <2GB RAM will result in a kernel OOM panic."
+  },
+  "services": [
+    {
+      "container_name": "supabase-db",
+      "image": "supabase/postgres:15.1.1",
+      "internal_ports": [5432]
+    },
+    {
+      "container_name": "supabase-studio",
+      "image": "supabase/studio:latest",
+      "internal_ports": [3000]
+    },
+    {
+      "container_name": "supabase-kong",
+      "image": "kong:2.8.1",
+      "internal_ports": [8000, 8443]
+    }
+    // Note: Truncated for demonstration purposes. A full Supabase stack has many more services.
+  ]
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/izhubs/izdeploy/pkg/contract"
 	"github.com/izhubs/izdeploy/pkg/diagnostics"
@@ -21,6 +22,7 @@ func newDeployCmd() *cobra.Command {
 		force      bool
 		imageTag   string
 		configPath string
+		buildArgs  []string
 	)
 
 	cmd := &cobra.Command{
@@ -44,6 +46,21 @@ func newDeployCmd() *cobra.Command {
 				imageTag = cfg.Image
 			}
 
+			if len(buildArgs) > 0 {
+				if cfg.Build == nil {
+					cfg.Build = &contract.BuildSpec{}
+				}
+				if cfg.Build.Args == nil {
+					cfg.Build.Args = make(map[string]string)
+				}
+				for _, arg := range buildArgs {
+					parts := strings.SplitN(arg, "=", 2)
+					if len(parts) == 2 {
+						cfg.Build.Args[parts[0]] = parts[1]
+					}
+				}
+			}
+
 			// Pre-deploy lockfile verification
 			lockRes, err := contract.VerifyLockfile(contract.DefaultLockfileName, cfg)
 			if err != nil && !force {
@@ -57,6 +74,11 @@ func newDeployCmd() *cobra.Command {
 				prob := diagnostics.NewInfraLockedProblem(lockRes.Message)
 				cmd.PrintErrln(string(prob.JSON()))
 				return errors.New("deployment rejected: infrastructure modified")
+			}
+
+			if localMode {
+				cmd.Println("WARNING: Building/deploying directly on VPS may cause OOM on low-memory servers (1GB RAM).")
+				cmd.Println("Recommendation: Use a Remote Builder (e.g. GitHub Actions) with Nixpacks --memory-limit 1g.")
 			}
 
 			cmd.Printf("Starting deployment for '%s' (image: %s)...\n", cfg.Name, imageTag)
@@ -82,6 +104,7 @@ func newDeployCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Bypass infrastructure lockfile verification gate")
 	cmd.Flags().StringVar(&imageTag, "image", "", "Override container image reference for this deployment")
 	cmd.Flags().StringVar(&configPath, "config", ".agent/izdeploy.json", "Path to izDeploy configuration file")
+	cmd.Flags().StringSliceVar(&buildArgs, "build-arg", []string{}, "Set build-time variables (e.g., SSH_KEY=...)")
 
 	return cmd
 }

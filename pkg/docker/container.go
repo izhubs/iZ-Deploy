@@ -91,6 +91,9 @@ func (c *Client) DeployContainer(ctx context.Context, spec DeploySpec) (string, 
 	if err := c.cleanupExistingContainer(ctx, spec.Name); err != nil {
 		return "", err
 	}
+	if err := c.cleanupGhostContainers(ctx, spec.Name); err != nil {
+		return "", err
+	}
 
 	containerConfig, hostConfig, err := c.buildContainerConfigs(spec)
 	if err != nil {
@@ -200,6 +203,22 @@ func (c *Client) cleanupExistingContainer(ctx context.Context, name string) erro
 
 	_ = c.StopContainer(ctx, existing.ID, DefaultGracePeriodSeconds)
 	return c.RemoveContainer(ctx, existing.ID, true)
+}
+
+func (c *Client) cleanupGhostContainers(ctx context.Context, appName string) error {
+	labelFilter := fmt.Sprintf("izdeploy.app=%s", appName)
+	containersList, err := c.cli.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("label", labelFilter)),
+	})
+	if err != nil {
+		return fmt.Errorf("failed searching ghost containers: %w", err)
+	}
+	for _, cnt := range containersList {
+		_ = c.StopContainer(ctx, cnt.ID, DefaultGracePeriodSeconds)
+		_ = c.RemoveContainer(ctx, cnt.ID, true)
+	}
+	return nil
 }
 
 // BuildContainerConfigs constructs Docker container and host configuration objects from DeploySpec.

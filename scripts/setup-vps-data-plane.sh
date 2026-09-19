@@ -156,4 +156,21 @@ for DIR in "/etc/izdeploy" "${IZDEPLOY_HOME}" "/var/log/izdeploy"; do
     chmod 750 "${DIR}"
 done
 
+echo "=== [6/6] Configuring zRAM and Memory Limits ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/setup-zram.sh" ]; then
+    bash "${SCRIPT_DIR}/setup-zram.sh"
+else
+    echo "Warning: setup-zram.sh not found."
+fi
+
+echo "=== [7/7] Setting up Automated Docker GC ==="
+CRON_FILE="/etc/cron.weekly/izdeploy-docker-gc"
+cat <<'EOF' > "${CRON_FILE}"
+#!/usr/bin/env bash
+docker system prune -af --volumes --filter "until=168h" >/var/log/izdeploy/docker-gc.log 2>&1
+EOF
+chmod +x "${CRON_FILE}"
+echo "Docker GC cronjob installed at ${CRON_FILE}."
+
 echo "izDeploy data plane bootstrap complete. System ready for daemon installation."

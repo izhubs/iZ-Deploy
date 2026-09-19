@@ -24,7 +24,7 @@ const (
 	DefaultHTTPPort       = 80
 	DefaultHTTPSPort      = 443
 	DefaultStartupTimeout = 5 * time.Second
-	DefaultShutdownTimeout = 5 * time.Second
+	DefaultShutdownTimeout = 30 * time.Second
 	DefaultHTTPClientTimeout = 3 * time.Second
 )
 

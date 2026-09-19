@@ -51,9 +51,12 @@ Available Commands:
 	rootCmd.AddCommand(newInitCmd())
 	rootCmd.AddCommand(newLintCmd())
 	rootCmd.AddCommand(newDeployCmd())
+	rootCmd.AddCommand(newRollbackCmd())
 	rootCmd.AddCommand(newMcpCmd())
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newLogsCmd())
+	rootCmd.AddCommand(newSecretCmd())
+	rootCmd.AddCommand(newVolumeCmd())
 
 	return rootCmd
 }

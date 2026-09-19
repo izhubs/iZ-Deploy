@@ -31,6 +31,9 @@ const (
 
 	// ChallengeTLSALPN01 validates domain ownership via TLS negotiation on port 443 with ALPN acme-tls/1.
 	ChallengeTLSALPN01 ACMEChallengeType = "TLS-ALPN-01"
+
+	// ChallengeDNS01 validates domain ownership via DNS TXT records.
+	ChallengeDNS01 ACMEChallengeType = "DNS-01"
 )
 
 // Cert errors.
@@ -101,7 +104,7 @@ func ValidateCertConfig(cfg CertConfig) error {
 	}
 
 	switch cfg.ChallengeType {
-	case ChallengeHTTP01, ChallengeTLSALPN01:
+	case ChallengeHTTP01, ChallengeTLSALPN01, ChallengeDNS01:
 		// valid
 	case "":
 		// Default to HTTP-01
@@ -143,6 +146,8 @@ func BuildProxyTLSArgs(cfg CertConfig) ([]string, error) {
 
 	if cfg.ChallengeType == ChallengeTLSALPN01 {
 		args = append(args, "--tls-challenge", "tls-alpn-01")
+	} else if cfg.ChallengeType == ChallengeDNS01 {
+		args = append(args, "--tls-challenge", "dns-01")
 	} else {
 		args = append(args, "--tls-challenge", "http-01")
 	}

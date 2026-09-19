@@ -39,6 +39,7 @@ var (
 // RouteSpec defines operational parameters for routing traffic to a service.
 type RouteSpec struct {
 	Service             string        `json:"service"`
+	Type                string        `json:"type,omitempty"` // web or worker
 	Domain              string        `json:"domain"`
 	TargetV1            string        `json:"target_v1"`
 	TargetV2            string        `json:"target_v2,omitempty"`
@@ -192,6 +193,25 @@ func SwapContainer(
 	}
 
 	swapStartTime := time.Now()
+
+	// Bypass proxy for background workers
+	if spec.Type == "worker" {
+		oldTarget := spec.TargetV1
+		if oldTarget != "" && oldTarget != targetV2 && onDrainV1 != nil {
+			if err := onDrainV1(ctx, oldTarget); err != nil {
+				return nil, fmt.Errorf("worker teardown failed: %w", err)
+			}
+		}
+		return &SwapResult{
+			Service:             spec.Service,
+			OldTarget:           oldTarget,
+			NewTarget:           targetV2,
+			HealthCheckDuration: 0,
+			SwapDuration:        time.Since(swapStartTime),
+			WithinSLA:           true,
+			Timestamp:           time.Now(),
+		}, nil
+	}
 
 	// 1. Register new container target v2
 	if err := RegisterRoute(ctx, client, spec, targetV2); err != nil {

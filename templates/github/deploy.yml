@@ -53,7 +53,7 @@ jobs:
       - name: Build OCI Image with Nixpacks
         run: |
           echo "Building container image using automated language detection..."
-          nixpacks build . --name "${IMAGE_TAG}"
+          nixpacks build . --name "${IMAGE_TAG}" --memory-limit 1g
           docker tag "${IMAGE_TAG}" "${IMAGE_LATEST}"
 
       - name: Push Images to GHCR

@@ -30,8 +30,10 @@ const (
 //
 // @ai-constraint: Mode defaults to "github-actions", builder defaults to "nixpacks".
 type BuildSpec struct {
-	Mode    string `json:"mode,omitempty"`    // "github-actions" (default), "host", "local", "cloud"
-	Builder string `json:"builder,omitempty"` // "nixpacks" (default), "dockerfile"
+	Mode    string            `json:"mode,omitempty"`    // "github-actions" (default), "host", "local", "cloud"
+	Builder string            `json:"builder,omitempty"` // "nixpacks" (default), "dockerfile"
+	Workdir string            `json:"workdir,omitempty"` // for monorepo support
+	Args    map[string]string `json:"args,omitempty"`    // for private submodules, e.g., SSH_KEY
 }
 
 // AppConfig represents the root application contract schema (.agent/izdeploy.json).
@@ -42,6 +44,7 @@ type BuildSpec struct {
 // are cryptographically locked in .agent/izdeploy.lock to prevent unauthorized mutation.
 type AppConfig struct {
 	Name        string            `json:"name"`
+	Type        string            `json:"type,omitempty"` // "web" (default) or "worker"
 	Port        int               `json:"port"`
 	Image       string            `json:"image"`
 	Env         map[string]string `json:"env,omitempty"`
@@ -80,6 +83,9 @@ type ResourceLimits struct {
 //
 // @ai-constraint: Never overwrite user-specified non-zero values during default injection.
 func (c *AppConfig) ApplyDefaults() {
+	if c.Type == "" {
+		c.Type = "web"
+	}
 	if c.Healthcheck == nil {
 		c.Healthcheck = &HealthcheckSpec{
 			Path:            DefaultHealthcheckPath,

@@ -13,7 +13,7 @@ ZRAM_SIZE="512M"
 ZRAM_ALGO="lz4"
 ZRAM_PRIORITY=100
 SWAP_FILE="/swapfile_fallback"
-SWAP_SIZE="1G"
+SWAP_SIZE="2G"
 SWAP_PRIORITY=10
 
 echo "=== [1/4] Verifying cgroups v2 Architecture ==="

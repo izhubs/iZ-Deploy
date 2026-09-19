@@ -162,6 +162,11 @@ func (s *AgentServer) executeDeployment(ctx context.Context, req DeployRequest) 
 		return "", err
 	}
 
+	if req.Labels == nil {
+		req.Labels = make(map[string]string)
+	}
+	req.Labels["izdeploy.app"] = req.Name
+
 	spec := docker.DeploySpec{
 		Name:          req.Name,
 		Image:         req.Image,

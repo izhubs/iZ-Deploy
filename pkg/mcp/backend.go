@@ -26,6 +26,7 @@ var envKeyRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 type DeploymentBackend interface {
 	GetStatus(ctx context.Context) (*StatusResponse, error)
 	Deploy(ctx context.Context, imageTag string, force bool) (*DeployResponse, error)
+	Rollback(ctx context.Context) (*DeployResponse, error)
 	GetLogs(ctx context.Context, tail int) (string, error)
 	Restart(ctx context.Context, gracePeriodSeconds int) (*RestartResponse, error)
 	SetEnv(ctx context.Context, vars map[string]string) (*EnvResponse, error)
@@ -158,6 +159,45 @@ func (b *LocalBackend) Deploy(ctx context.Context, imageTag string, force bool) 
 		ContainerID: fmt.Sprintf("izd-%s-%d", cfg.Name, time.Now().Unix()%10000),
 		DurationMS:  duration,
 		Message:     fmt.Sprintf("Container %s successfully updated to image %s", cfg.Name, imageTag),
+	}, nil
+}
+
+// Rollback simulates a traffic shift to the previous container version.
+func (b *LocalBackend) Rollback(ctx context.Context) (*DeployResponse, error) {
+	start := time.Now()
+
+	cfg, err := contract.ParseConfigFile(b.configPath())
+	if err != nil {
+		return nil, err
+	}
+
+	// Simulate restoring previous image
+	prevImage := cfg.Image + "-prev"
+	cfg.Image = prevImage
+
+	configData, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed encoding config for rollback: %w", err)
+	}
+	configData = append(configData, '\n')
+	if err := os.WriteFile(b.configPath(), configData, 0644); err != nil {
+		return nil, fmt.Errorf("failed saving config rollback: %w", err)
+	}
+
+	// Refresh lockfile config_hash
+	newLock := contract.GenerateLockfile(cfg)
+	if err := contract.WriteLockfile(b.lockPath(), newLock); err != nil {
+		return nil, fmt.Errorf("failed updating lockfile: %w", err)
+	}
+
+	duration := time.Since(start).Milliseconds()
+
+	return &DeployResponse{
+		Status:      "rolled_back",
+		ImageTag:    prevImage,
+		ContainerID: fmt.Sprintf("izd-%s-prev", cfg.Name),
+		DurationMS:  duration,
+		Message:     fmt.Sprintf("Traffic successfully rolled back to previous version of %s", cfg.Name),
 	}, nil
 }
 

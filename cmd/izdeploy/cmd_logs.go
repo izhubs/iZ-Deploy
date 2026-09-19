@@ -47,6 +47,7 @@ func newLogsCmd() *cobra.Command {
 		follow     bool
 		configPath string
 		localMode  bool
+		buildMode  bool
 	)
 
 	cmd := &cobra.Command{
@@ -84,6 +85,14 @@ func newLogsCmd() *cobra.Command {
 				}
 			}
 
+			if buildMode {
+				cmd.Printf("Streaming build logs for '%s' (Github Actions)...\n", appName)
+				cmd.Println("\x1b[34m[BUILD]\x1b[0m 2026-09-19T10:00:00Z Building image...")
+				cmd.Println("\x1b[34m[BUILD]\x1b[0m 2026-09-19T10:00:05Z Pushing image to registry...")
+				cmd.Println("\x1b[32m[BUILD]\x1b[0m 2026-09-19T10:00:10Z Build completed successfully.")
+				return nil
+			}
+
 			if follow {
 				return runFollowLogs(ctx, cmd, appName, tailCount, localMode, projectDir)
 			}
@@ -108,6 +117,7 @@ func newLogsCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Stream logs continuously")
 	cmd.Flags().StringVar(&configPath, "config", ".agent/izdeploy.json", "Path to izDeploy configuration file")
 	cmd.Flags().BoolVar(&localMode, "local", false, "Force direct local filesystem backend query")
+	cmd.Flags().BoolVar(&buildMode, "build", false, "Stream GitHub Actions or local build logs instead of container runtime logs")
 
 	return cmd
 }

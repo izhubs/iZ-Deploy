@@ -8,17 +8,11 @@ izDeploy is a lightweight application deployment engine and daemon optimized for
 
 ### Phase 1: Prepare the VPS (Data Plane)
 
-Run the bootstrap scripts on a fresh Ubuntu 24.04 LTS instance with root privileges:
+Run the unified bootstrap script on a fresh Ubuntu 24.04 LTS instance with root privileges:
 
 ```bash
-# 1. Download and run host bootstrap (installs Docker, configures UFW firewall, creates user)
-curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/setup-vps-data-plane.sh | sudo bash
-
-# 2. Configure 512MB zRAM LZ4 swap and kernel memory parameters (prevents OOM on 1GB VPS)
-curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/setup-zram.sh | sudo bash
-
-# 3. Enable and start the agent daemon
-sudo systemctl enable --now izdeploy-agent
+# Downloads agent, installs Docker/UFW, configures zRAM (if RAM < 2GB), and starts the daemon.
+curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/install-node.sh | sudo bash
 ```
 
 ### Phase 2: Initialize Your App Repository (Developer Machine)
@@ -56,6 +50,9 @@ The `izdeploy` CLI controls the project lifecycle, configuration validation, and
 | `init` | `izdeploy init [--name <name>] [--port <port>] [--image <ref>]` | Scaffolds `.agent/izdeploy.json`, `.agent/izdeploy.lock`, `.cursor/rules/izdeploy.mdc`, and `CLAUDE.md`. |
 | `lint` | `izdeploy lint [--config <path>] [--lock <path>] [--json]` | Validates schema syntax, DNS names, port bounds (1-65535), and SHA-256 infrastructure lockfile signatures. Returns exit code 0 on success, 1 on failure. |
 | `deploy` | `izdeploy deploy [--local] [--force]` | Dispatches container deployment. The `--local` flag builds via local Docker engine and pushes to registry; `--force` bypasses lockfile verification. |
+| `rollback` | `izdeploy rollback` | Instantly rolls back traffic to the previous healthy container version (Phase 3). |
+| `secret` | `izdeploy secret set [KEY=VALUE...] [--file .env]` | Securely manages environment variables without exposing them in git (Phase 2). |
+| `volume` | `izdeploy volume backup <name> [--s3]` | Backs up the specified Docker volume to a tar file or S3 (Phase 2). |
 | `status` | `izdeploy status [--json]` | Queries the deployment status, container uptime, memory consumption, and health check state. |
 | `logs` | `izdeploy logs [--app <name>] [--tail <n>] [--follow / -f] [--config <path>]` | Streams or inspects container stdout/stderr logs from daemon or local runtime. |
 | `mcp` | `izdeploy mcp` | Starts the stdio-based Model Context Protocol (MCP) server for direct IDE integration. |
