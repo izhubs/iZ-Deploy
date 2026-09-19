@@ -1,0 +1,29 @@
+# MySQL 1-Click Docker Compose Template
+# izDeploy Template Catalog: Database / Relational
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: izdeploy-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-app}
+      MYSQL_USER: ${MYSQL_USER:-izdeploy}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - izdeploy-mysql-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+volumes:
+  izdeploy-mysql-data:
+    name: izdeploy-mysql-data
