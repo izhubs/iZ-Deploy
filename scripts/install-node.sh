@@ -10,6 +10,7 @@ REPO="izhubs/iZ-Deploy"
 IZDEPLOY_USER="izdeploy"
 IZDEPLOY_GROUP="izdeploy"
 IZDEPLOY_HOME="/var/lib/izdeploy"
+WEBHOOK_SECRET=$(openssl rand -hex 16)
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Root privileges required. Execute with sudo or as root." >&2
@@ -82,6 +83,7 @@ ExecStart=/usr/local/bin/izdeploy-agent
 Restart=always
 RestartSec=5
 Environment="IZDEPLOY_ENV=production"
+Environment="IZDEPLOY_WEBHOOK_SECRET=${WEBHOOK_SECRET}"
 
 [Install]
 WantedBy=multi-user.target
@@ -96,8 +98,17 @@ if [ -n "${GH_USER:-}" ] && [ -n "${GH_PAT:-}" ]; then
     echo "${GH_PAT}" | docker login ghcr.io -u "${GH_USER}" --password-stdin || echo "WARNING: GHCR login failed."
 fi
 
+VPS_IP=$(curl -s ifconfig.me)
+
 echo "The iZ-Deploy agent is now running on port 8098."
 echo "Check status with: systemctl status izdeploy-agent"
+echo ""
+echo "========================================================================="
+echo "🔒 SECURITY CREDENTIALS (SAVE THIS!)"
+echo "========================================================================="
+echo "VPS IP Address: ${VPS_IP}"
+echo "Webhook URL:    http://${VPS_IP}:8098/webhook"
+echo "Webhook Secret: ${WEBHOOK_SECRET}"
 echo ""
 echo "========================================================================="
 echo "🤖 AI AGENT HANDOFF: COPY AND PASTE THE LINK BELOW TO YOUR AI ASSISTANT"

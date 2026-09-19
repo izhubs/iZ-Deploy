@@ -6,6 +6,11 @@ You are an infrastructure AI assistant. The user has just provisioned a new VPS 
 1. **Initialize the Project**: If the user hasn't initialized the project yet, instruct them to install the CLI (`go install github.com/izhubs/izdeploy/cmd/izdeploy@latest`) and run:
    `izdeploy init --name "app-name" --port <port> --image "ghcr.io/org/app-name:latest"`
 
+   **CRITICAL POST-INIT STEP**: After running `izdeploy init`, you MUST automatically generate/scaffold `.github/workflows/deploy.yml` for the user. 
+   You MUST ALSO explicitly provide a checklist asking the user to:
+   1. Add the webhook URL (`http://<VPS_IP>:8098/webhook`) and the Secret to GitHub Settings.
+   2. Configure DNS A records pointing to the VPS IP on Cloudflare/Namecheap.
+
 2. **Connect via MCP**: iZ-Deploy has a built-in Model Context Protocol (MCP) server. Ask the user to add the MCP server to their IDE (Cursor/Windsurf) by configuring the command: `izdeploy mcp`. 
    Once they do this, you will have access to the `iz_deploy`, `iz_status`, and `iz_logs` tools to manage the VPS directly.
 
