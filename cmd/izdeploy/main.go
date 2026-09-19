@@ -1,54 +1,66 @@
-// Package main provides the entrypoint for the izdeploy developer CLI.
+// Package main provides the CLI entrypoint and Model Context Protocol stdio server for izDeploy.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 // Version specifies the binary release version injected at link time.
 const Version = "0.1.0-dev"
 
-// ExitCodeSuccess and standard POSIX exit status constants.
+// Exit status constants.
 const (
 	ExitCodeSuccess = 0
 	ExitCodeError   = 1
 )
 
-// DECISION: Use stdlib flag parser for bootstrap scaffolding before Cobra introduction.
-// WHY: Avoid external dependencies during initial monorepo foundation phase (TASK-001)
-// while providing immediate syntax validation and status display.
-// TRADE-OFF: Subcommands are mapped manually until Cobra CLI wiring in TASK-013.
-// REF: wiki/projects/izdeploy/izdeploy_engineering_backlog.md#task-001
+// DECISION: Migrate CLI commands to Cobra structure for unified developer tooling (TASK-013).
+// WHY: Cobra provides declarative subcommand registration, POSIX flag parsing, automated shell completion,
+// and consistent help output across developer terminals and IDE runners.
+// TRADE-OFF: Adds spf13/cobra dependency tree to the CLI binary.
+// REF: wiki/projects/izdeploy/izdeploy_engineering_backlog.md#task-013
+
+func newRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "izdeploy",
+		Short: "izDeploy application contract validator, deployment engine, and MCP stdio server",
+		Long: `izDeploy is a lightweight PaaS engine and AI-agent deployment daemon optimized for resource-constrained Linux environments (>=512MB RAM).
+
+Available Commands:
+  init    Initialize a minimal .agent/izdeploy.json contract, lockfile, and AI bridge rules
+  lint    Validate application contract syntax, semantic constraints, and SHA-256 lockfile
+  deploy  Execute container image deployment with pre-deploy lock integrity verification
+  mcp     Launch the stdio Model Context Protocol server exposing 5 deployment tools
+  status  Inspect runtime state, container health, and resource consumption`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+
+	rootCmd.Version = Version
+	rootCmd.SetVersionTemplate("izdeploy version {{.Version}}\n")
+
+	// Register modular subcommands
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.AddCommand(newLintCmd())
+	rootCmd.AddCommand(newDeployCmd())
+	rootCmd.AddCommand(newMcpCmd())
+	rootCmd.AddCommand(newStatusCmd())
+
+	return rootCmd
+}
 
 // main initializes command dispatch for the izdeploy CLI.
 //
-// Business rule: The CLI acts as both a local developer tool and an MCP stdio server.
+// Business rule: The CLI serves dual roles as an interactive terminal tool and an automated MCP stdio provider.
 //
-// @ai-constraint: Maintain zero external dependencies in the root cmd bootstrap
-// to guarantee clean initial module compilation across all platforms.
+// @ai-constraint: Never output non-JSON text to stdout when operating in MCP mode.
 func main() {
-	showVersion := flag.Bool("version", false, "Print version information and exit")
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("izdeploy CLI version %s\n", Version)
-		os.Exit(ExitCodeSuccess)
-	}
-
-	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Printf("izdeploy CLI v%s\nUsage: izdeploy [command] [options]\nCommands: init, lint, deploy, mcp, status\n", Version)
-		os.Exit(ExitCodeSuccess)
-	}
-
-	command := args[0]
-	switch command {
-	case "version":
-		fmt.Printf("izdeploy version %s\n", Version)
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", command)
+	rootCmd := newRootCmd()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(ExitCodeError)
 	}
 }

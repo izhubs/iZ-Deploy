@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/izhubs/izdeploy/main/schemas/v0.1/izdeploy.schema.json",
   "title": "izDeploy Application Configuration",
   "description": "Configuration specification for applications deployed with izDeploy v0.1",
@@ -12,8 +12,8 @@
   "properties": {
     "name": {
       "type": "string",
-      "pattern": "^[a-z0-9-]+$",
-      "description": "Unique identifier for the application (DNS-safe lowercase alphanumeric and hyphens)"
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Unique identifier for the application (DNS-safe lowercase alphanumeric and hyphens, 1-63 chars)"
     },
     "port": {
       "type": "integer",
@@ -23,6 +23,7 @@
     },
     "image": {
       "type": "string",
+      "minLength": 1,
       "description": "Container image reference (e.g. ghcr.io/org/app:tag or docker.io/library/app:tag)"
     },
     "env": {
@@ -56,6 +57,38 @@
         }
       },
       "additionalProperties": false
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "memory_mb": {
+          "type": "integer",
+          "minimum": 32,
+          "default": 256,
+          "description": "Maximum RAM allocation in megabytes"
+        },
+        "cpu_cores": {
+          "type": "number",
+          "minimum": 0.1,
+          "default": 1.0,
+          "description": "Allocated CPU core fraction"
+        }
+      },
+      "additionalProperties": false
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of routing domains or path prefixes assigned to the application"
+    },
+    "volumes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of host:container persistent volume bind mounts"
     }
   },
   "additionalProperties": false

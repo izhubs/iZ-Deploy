@@ -1,0 +1,85 @@
+name: izDeploy Nixpacks CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    name: Nixpacks Build & Deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Nixpacks CLI
+        run: |
+          curl -sSL https://nixpacks.com/install.sh | bash
+          nixpacks --version
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive Image Tag and Metadata
+        id: meta
+        run: |
+          # Lowercase repository reference for standard OCI naming
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="ghcr.io/${REPO_LOWER}"
+          IMAGE_TAG="${IMAGE_BASE}:${{ github.sha }}"
+          IMAGE_LATEST="${IMAGE_BASE}:latest"
+
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "image_latest=${IMAGE_LATEST}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "IMAGE_LATEST=${IMAGE_LATEST}" >> $GITHUB_ENV
+
+      - name: Build OCI Image with Nixpacks
+        run: |
+          echo "Building container image using automated language detection..."
+          nixpacks build . --name "${IMAGE_TAG}"
+          docker tag "${IMAGE_TAG}" "${IMAGE_LATEST}"
+
+      - name: Push Images to GHCR
+        run: |
+          echo "Publishing container images to GHCR..."
+          docker push "${IMAGE_TAG}"
+          docker push "${IMAGE_LATEST}"
+
+      - name: Trigger izDeploy Host Agent Webhook
+        if: env.IZDEPLOY_WEBHOOK_URL != ''
+        env:
+          IZDEPLOY_WEBHOOK_URL: ${{ secrets.IZDEPLOY_WEBHOOK_URL }}
+          IZDEPLOY_AUTH_TOKEN: ${{ secrets.IZDEPLOY_AUTH_TOKEN }}
+        run: |
+          echo "Notifying izDeploy host daemon of updated image tag..."
+          HTTP_STATUS=$(curl -s -o /tmp/webhook_response.json -w "%{http_code}" \
+            -X POST "${IZDEPLOY_WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${IZDEPLOY_AUTH_TOKEN}" \
+            -d "{\"image\": \"${IMAGE_TAG}\", \"sha\": \"${{ github.sha }}\", \"actor\": \"${{ github.actor }}\"}")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Webhook delivered successfully (HTTP $HTTP_STATUS)"
+            cat /tmp/webhook_response.json
+          else
+            echo "::error::Webhook trigger failed with HTTP status $HTTP_STATUS"
+            cat /tmp/webhook_response.json || true
+            exit 1
+          fi
