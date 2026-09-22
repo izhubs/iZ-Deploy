@@ -37,12 +37,22 @@ Available Commands:
   init    Initialize a minimal .agent/izdeploy.json contract, lockfile, and AI bridge rules
   lint    Validate application contract syntax, semantic constraints, and SHA-256 lockfile
   deploy  Execute container image deployment with pre-deploy lock integrity verification
+  db      Manage lightweight database instances (mariadb, postgres, redis)
+  menu    Launch interactive terminal management console (for human operators)
+  tunnel  Manage secure outbound network tunnels (Cloudflare Tunnel & Tailscale SSH)
   mcp     Launch the stdio Model Context Protocol server exposing 5 deployment tools
   status  Inspect runtime state, container health, and resource consumption
   logs    Stream or inspect container logs for an application
   auth    Authenticate with GitHub using Device Flow`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 && IsTerminalDevice() {
+				menuCmd := newMenuCmd()
+				return menuCmd.RunE(menuCmd, nil)
+			}
+			return cmd.Help()
+		},
 	}
 
 	rootCmd.Version = Version
@@ -53,6 +63,9 @@ Available Commands:
 	rootCmd.AddCommand(newLintCmd())
 	rootCmd.AddCommand(newDeployCmd())
 	rootCmd.AddCommand(newRollbackCmd())
+	rootCmd.AddCommand(newDBCmd())
+	rootCmd.AddCommand(newTunnelCmd())
+	rootCmd.AddCommand(newMenuCmd())
 	rootCmd.AddCommand(newMcpCmd())
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newLogsCmd())

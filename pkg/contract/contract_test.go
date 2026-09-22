@@ -298,3 +298,56 @@ func TestBridgeFiles_Generation(t *testing.T) {
 		t.Errorf("expected claude guide file at %s: %v", claudePath, err)
 	}
 }
+
+func TestParseConfigBytes_Strategy(t *testing.T) {
+	// Test default injection
+	rawDefault := []byte(`{
+		"name": "default-app",
+		"port": 8080,
+		"image": "ghcr.io/org/app:latest"
+	}`)
+	cfgDefault, err := ParseConfigBytes(rawDefault)
+	if err != nil {
+		t.Fatalf("unexpected error parsing default config: %v", err)
+	}
+	if cfgDefault.Strategy != StrategyZeroDowntime {
+		t.Errorf("expected default strategy %q, got %q", StrategyZeroDowntime, cfgDefault.Strategy)
+	}
+	if err := Validate(cfgDefault); err != nil {
+		t.Errorf("expected validation to pass, got: %v", err)
+	}
+
+	// Test recreate strategy
+	rawRecreate := []byte(`{
+		"name": "recreate-app",
+		"strategy": "recreate",
+		"port": 8080,
+		"image": "ghcr.io/org/app:latest"
+	}`)
+	cfgRecreate, err := ParseConfigBytes(rawRecreate)
+	if err != nil {
+		t.Fatalf("unexpected error parsing recreate config: %v", err)
+	}
+	if cfgRecreate.Strategy != StrategyRecreate {
+		t.Errorf("expected strategy %q, got %q", StrategyRecreate, cfgRecreate.Strategy)
+	}
+	if err := Validate(cfgRecreate); err != nil {
+		t.Errorf("expected validation to pass on recreate strategy, got: %v", err)
+	}
+
+	// Test invalid strategy
+	rawInvalid := []byte(`{
+		"name": "invalid-app",
+		"strategy": "rolling",
+		"port": 8080,
+		"image": "ghcr.io/org/app:latest"
+	}`)
+	cfgInvalid, err := ParseConfigBytes(rawInvalid)
+	if err != nil {
+		t.Fatalf("unexpected error parsing invalid config: %v", err)
+	}
+	if err := Validate(cfgInvalid); err == nil {
+		t.Errorf("expected validation failure on invalid strategy 'rolling', got nil")
+	}
+}
+

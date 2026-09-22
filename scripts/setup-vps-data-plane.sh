@@ -13,6 +13,11 @@ SSH_RATE_LIMIT="${SSH_RATE_LIMIT:-true}"
 IZDEPLOY_USER="izdeploy"
 IZDEPLOY_GROUP="izdeploy"
 IZDEPLOY_HOME="/var/lib/izdeploy"
+TAILSCALE_KEY="${TAILSCALE_KEY:-}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-}"
+NODE_NAME="${NODE_NAME:-}"
+ENABLE_FAIL2BAN="${ENABLE_FAIL2BAN:-true}"
+ENABLE_UNATTENDED_UPGRADES="${ENABLE_UNATTENDED_UPGRADES:-true}"
 
 echo "=== [1/5] Validating Host Architecture and OS Distribution ==="
 
@@ -107,24 +112,77 @@ systemctl start docker
 
 echo "Docker Engine $(docker --version) active."
 
-echo "=== [3/5] Configuring Host Firewall (UFW) ==="
+echo "=== [3/5] Configuring Host Firewall (UFW) & Secure Networking ==="
+
+# Optional Tailscale Setup
+if [ -n "${TAILSCALE_KEY}" ]; then
+    echo "Provisioning Tailscale Mesh and Tailscale SSH..."
+    if ! command -v tailscale >/dev/null 2>&1; then
+        curl -fsSL https://tailscale.com/install.sh | sh
+    fi
+    TS_HOSTNAME="${NODE_NAME:-iz-node-$(hostname)}"
+    tailscale up --authkey="${TAILSCALE_KEY}" --ssh --hostname="${TS_HOSTNAME}" --reset || true
+    echo "Tailscale active with hostname '${TS_HOSTNAME}' and Tailscale SSH."
+fi
+
+# Optional Cloudflare Tunnel Setup
+if [ -n "${CF_TUNNEL_TOKEN}" ]; then
+    echo "Provisioning Cloudflare Tunnel (cloudflared)..."
+    if ! command -v cloudflared >/dev/null 2>&1; then
+        CF_DEB_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${DPKG_ARCH}.deb"
+        curl -sSL "${CF_DEB_URL}" -o /tmp/cloudflared.deb
+        dpkg -i /tmp/cloudflared.deb || apt-get install -f -y
+        rm -f /tmp/cloudflared.deb
+    fi
+    cloudflared service install "${CF_TUNNEL_TOKEN}" || true
+    systemctl enable cloudflared || true
+    systemctl restart cloudflared || true
+    echo "Cloudflare Tunnel active."
+fi
 
 ufw default deny incoming
 ufw default allow outgoing
 
-# Port 80 & 443 for web traffic and proxy routing
-ufw allow 80/tcp comment 'izdeploy HTTP traffic'
-ufw allow 443/tcp comment 'izdeploy HTTPS traffic'
-
-# SSH rule with optional rate limiting
-if [ "${SSH_RATE_LIMIT}" = "true" ]; then
-    ufw limit "${SSH_PORT}/tcp" comment 'izdeploy SSH rate-limited access'
+# Port 80 & 443 web traffic rules
+if [ -n "${CF_TUNNEL_TOKEN}" ]; then
+    echo "Cloudflare Tunnel active: keeping incoming public ports 80/443 closed."
 else
-    ufw allow "${SSH_PORT}/tcp" comment 'izdeploy SSH direct access'
+    ufw allow 80/tcp comment 'izdeploy HTTP traffic'
+    ufw allow 443/tcp comment 'izdeploy HTTPS traffic'
+fi
+
+# SSH rule: Tailscale only vs Public SSH
+if [ -n "${TAILSCALE_KEY}" ]; then
+    ufw allow in on tailscale0 to any port "${SSH_PORT}" proto tcp comment 'izdeploy SSH via Tailscale only'
+    echo "Public port ${SSH_PORT} closed. SSH restricted strictly to Tailscale network."
+else
+    if [ "${SSH_RATE_LIMIT}" = "true" ]; then
+        ufw limit "${SSH_PORT}/tcp" comment 'izdeploy SSH rate-limited access'
+    else
+        ufw allow "${SSH_PORT}/tcp" comment 'izdeploy SSH direct access'
+    fi
 fi
 
 ufw --force enable
-echo "Firewall active: incoming default deny, ports 80/443 open, SSH port ${SSH_PORT} secured."
+echo "Firewall active: incoming default deny configured."
+
+# Fail2ban when public SSH is open
+if [ -z "${TAILSCALE_KEY}" ] && [ "${ENABLE_FAIL2BAN}" = "true" ]; then
+    echo "Public SSH detected: installing fail2ban for automated IP protection..."
+    apt-get install -y --no-install-recommends fail2ban
+    systemctl enable fail2ban || true
+    systemctl restart fail2ban || true
+fi
+
+# Unattended security upgrades
+if [ "${ENABLE_UNATTENDED_UPGRADES}" = "true" ]; then
+    echo "Configuring automatic security updates..."
+    apt-get install -y --no-install-recommends unattended-upgrades
+    mkdir -p /etc/apt/apt.conf.d
+    echo 'APT::Periodic::Update-Package-Lists "1";' > /etc/apt/apt.conf.d/20auto-upgrades
+    echo 'APT::Periodic::Unattended-Upgrade "1";' >> /etc/apt/apt.conf.d/20auto-upgrades
+    systemctl restart unattended-upgrades || true
+fi
 
 echo "=== [4/5] Provisioning System User & Group Permissions ==="
 

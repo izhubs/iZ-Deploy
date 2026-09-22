@@ -69,6 +69,14 @@ func Validate(cfg *AppConfig) error {
 		errs = append(errs, ValidationError{Field: "port", Reason: fmt.Sprintf("port must be an integer between %d and %d", MinPort, MaxPort)})
 	}
 
+	// Validate Strategy if supplied
+	if cfg.Strategy != "" && cfg.Strategy != StrategyZeroDowntime && cfg.Strategy != StrategyRecreate {
+		errs = append(errs, ValidationError{
+			Field:  "strategy",
+			Reason: fmt.Sprintf("strategy must be one of: %s, %s", StrategyZeroDowntime, StrategyRecreate),
+		})
+	}
+
 	// Validate Image
 	if strings.TrimSpace(cfg.Image) == "" {
 		errs = append(errs, ValidationError{Field: "image", Reason: "container image reference is required"})

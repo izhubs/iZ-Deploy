@@ -22,6 +22,9 @@ const (
 	MaxPort                    = 65535
 	MinMemoryMB                = 32
 	MinCPUCores                = 0.1
+	StrategyZeroDowntime       = "zero-downtime"
+	StrategyRecreate           = "recreate"
+	DefaultStrategy            = StrategyZeroDowntime
 )
 
 // BuildSpec defines application build strategy and tooling.
@@ -44,7 +47,8 @@ type BuildSpec struct {
 // are cryptographically locked in .agent/izdeploy.lock to prevent unauthorized mutation.
 type AppConfig struct {
 	Name        string            `json:"name"`
-	Type        string            `json:"type,omitempty"` // "web" (default) or "worker"
+	Type        string            `json:"type,omitempty"`     // "web" (default) or "worker"
+	Strategy    string            `json:"strategy,omitempty"` // "zero-downtime" (default) or "recreate"
 	Port        int               `json:"port"`
 	Image       string            `json:"image"`
 	Env         map[string]string `json:"env,omitempty"`
@@ -85,6 +89,9 @@ type ResourceLimits struct {
 func (c *AppConfig) ApplyDefaults() {
 	if c.Type == "" {
 		c.Type = "web"
+	}
+	if c.Strategy == "" {
+		c.Strategy = DefaultStrategy
 	}
 	if c.Healthcheck == nil {
 		c.Healthcheck = &HealthcheckSpec{

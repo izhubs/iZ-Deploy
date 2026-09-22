@@ -11,8 +11,13 @@ izDeploy is a lightweight application deployment engine and daemon optimized for
 Run the unified bootstrap script on a fresh Ubuntu 24.04 LTS instance with root privileges:
 
 ```bash
-# Downloads agent, installs Docker/UFW, configures zRAM (if RAM < 2GB), and starts the daemon.
+# Standard bootstrap (Docker, UFW, zRAM if RAM < 2GB, daemon):
 curl -sSL https://raw.githubusercontent.com/izhubs/iz-deploy/main/scripts/install-node.sh | sudo bash
+
+# Hardened Zero-Inbound bootstrap (Tailscale SSH + Cloudflare Tunnel, Zero Open Inbound Ports):
+curl -sSL https://raw.githubusercontent.com/izhubs/iz-deploy/main/scripts/install-node.sh | sudo bash -s -- \
+  --tailscale-key=tskey-auth-xxxx \
+  --cf-token=eyJhxxxx
 ```
 
 ### Phase 2: Initialize Your App Repository (Developer Machine)
@@ -49,8 +54,11 @@ The `izdeploy` CLI controls the project lifecycle, configuration validation, and
 |---|---|---|
 | `init` | `izdeploy init [--name <name>] [--port <port>] [--image <ref>]` | Scaffolds `.agent/izdeploy.json`, `.agent/izdeploy.lock`, `.cursor/rules/izdeploy.mdc`, and `CLAUDE.md`. |
 | `lint` | `izdeploy lint [--config <path>] [--lock <path>] [--json]` | Validates schema syntax, DNS names, port bounds (1-65535), and SHA-256 infrastructure lockfile signatures. Returns exit code 0 on success, 1 on failure. |
-| `deploy` | `izdeploy deploy [--local] [--force]` | Dispatches container deployment. The `--local` flag builds via local Docker engine and pushes to registry; `--force` bypasses lockfile verification. |
+| `deploy` | `izdeploy deploy [--local] [--force] [--strategy <zero-downtime\|recreate>]` | Dispatches container deployment. Supports `--strategy recreate` for VPS <=512MB RAM; `--force` bypasses lockfile verification. |
 | `rollback` | `izdeploy rollback` | Instantly rolls back traffic to the previous healthy container version (Phase 3). |
+| `db` | `izdeploy db create <mariadb\|postgres\|redis> [--name <name>]` | Provisions a low-RAM database container (96MB/128MB/32MB) with cgroup limits, local binding, and auto-generated credentials. Supports `list`, `stop`, `start`, `remove`. |
+| `tunnel` | `izdeploy tunnel setup <cloudflare\|tailscale> [--dry-run]` | Configures outbound network tunnels and locks down public UFW ports. Supports `status`. |
+| `menu` | `izdeploy menu` (or `izdeploy` without args on TTY) | Launches the interactive terminal management console wizard for human operators. |
 | `secret` | `izdeploy secret set [KEY=VALUE...] [--file .env]` | Securely manages environment variables without exposing them in git (Phase 2). |
 | `volume` | `izdeploy volume backup <name> [--s3]` | Backs up the specified Docker volume to a tar file or S3 (Phase 2). |
 | `status` | `izdeploy status [--json]` | Queries the deployment status, container uptime, memory consumption, and health check state. |
@@ -367,7 +375,7 @@ The `izdeploy-agent` daemon exposes an authenticated webhook receiver for zero-d
 ```
 
 #### GitHub Webhook Setup
-1. In your GitHub repository, navigate to **Settings** > **Webhooks** > **Add webhook**.
+1. In your GitHub repository, navigate to `Settings` > `Webhooks` > `Add webhook`.
 2. **Payload URL**: `http://<VPS_IP>:8098/webhook`
 3. **Content type**: `application/json`
 4. **Secret**: Value matching `IZDEPLOY_WEBHOOK_SECRET` on your VPS.
@@ -404,6 +412,143 @@ izdeploy logs --local --app storefront
    - Queries `http://127.0.0.1:8098/logs?app=<name>&tail=<n>` on the host daemon.
    - Falls back to `LocalBackend` if the daemon is offline or connection is refused.
 3. **Buffer Management**: In follow mode (`-f`), polls for runtime updates every 2 seconds until `SIGINT` or context cancellation.
+
+---
+
+### 12. Low-RAM Deployment Strategies (`strategy`)
+
+On resource-constrained VPS instances (<= 512MB RAM), standard zero-downtime rolling deployments can trigger the Linux kernel Out-Of-Memory killer (`Exit 137`) because two instances of the application container run simultaneously during the healthcheck handover window.
+
+izDeploy provides two deployment strategies configured via `.agent/izdeploy.json` or CLI flag:
+
+| Strategy | Behavior | Trade-Off | Target Infrastructure |
+|---|---|---|---|
+| `zero-downtime` (Default) | Starts new container, verifies health check via proxy, swaps routes, terminates old container. | Requires 2x application memory during handover. | VPS with >= 1GB RAM. |
+| `recreate` | Stops and removes existing container before starting the replacement container. | Brief downtime window (1-3 seconds). Zero memory spike. | Micro VPS (<= 512MB RAM). |
+
+#### Configuration in `.agent/izdeploy.json`
+
+```json
+{
+  "name": "storefront",
+  "port": 3000,
+  "image": "ghcr.io/company/storefront:v1.0.0",
+  "strategy": "recreate"
+}
+```
+
+#### CLI Override
+
+```bash
+izdeploy deploy --strategy recreate
+```
+
+---
+
+### 13. 1-Click Micro-Database Management (`izdeploy db`)
+
+izDeploy provisions isolated database containers tuned for micro-instances. All micro-databases bind strictly to `127.0.0.1` (never exposed to public interfaces), apply cgroup memory caps, and generate 32-byte cryptographic passwords (`crypto/rand`).
+
+| Engine | Image Tag | RAM Cap | Local Port | Persistence Volume |
+|---|---|---|---|---|
+| `mariadb` | `mariadb:11.4` | 96MB | `127.0.0.1:3306` | `izdeploy-db-mariadb-data` |
+| `postgres` | `postgres:16-alpine` | 128MB | `127.0.0.1:5432` | `izdeploy-db-postgres-data` |
+| `redis` | `redis:7-alpine` | 32MB | `127.0.0.1:6379` | `izdeploy-db-redis-data` |
+
+#### Commands
+
+```bash
+# Provision a database container with auto-generated credentials
+izdeploy db create mariadb --name my-mariadb
+
+# Provision a PostgreSQL container
+izdeploy db create postgres
+
+# Provision a Redis container
+izdeploy db create redis
+
+# List running and stopped database containers
+izdeploy db list
+
+# Lifecycle controls
+izdeploy db stop mariadb
+izdeploy db start mariadb
+izdeploy db remove mariadb --force
+```
+
+---
+
+### 14. Zero-Inbound Network Hardening & Tunnels (`izdeploy tunnel`)
+
+For maximum server isolation, izDeploy supports running with **zero open inbound ports** (`ufw default deny incoming`). Ingress web traffic is routed via Cloudflare edge tunnels, and remote administrative access is restricted to encrypted Tailscale mesh networking.
+
+#### Tunnel Architectures
+
+1. **Cloudflare Tunnel (`cloudflared`)**: Establishes outbound TLS connections to Cloudflare edge nodes. Public ports 80 and 443 can be closed completely on the VPS firewall.
+2. **Tailscale SSH (`tailscale`)**: Provides zero-trust mesh networking. Administrative SSH connections are authenticated through Tailscale identity providers, allowing public port 22 to be closed completely.
+
+#### CLI Invocations
+
+```bash
+# Set up Cloudflare Tunnel (locks public HTTP/HTTPS ports)
+izdeploy tunnel setup cloudflare --token "eyJh..."
+
+# Dry-run validation of setup commands without host mutation
+izdeploy tunnel setup cloudflare --token "eyJh..." --dry-run
+
+# Set up Tailscale SSH (locks public SSH port 22)
+izdeploy tunnel setup tailscale --authkey "tskey-auth-..."
+
+# Inspect active tunnel interfaces and firewall status
+izdeploy tunnel status
+```
+
+---
+
+### 15. Interactive Terminal Management Console (`izdeploy menu`)
+
+Human system administrators can manage services interactively through a text-based terminal wizard without memorizing CLI flags.
+
+#### Invocation
+
+```bash
+# Explicit invocation
+izdeploy menu
+
+# Automatic invocation when running without arguments in an interactive terminal (TTY)
+izdeploy
+```
+
+#### TTY Detection Logic
+
+izDeploy checks POSIX file descriptor 0 (`os.Stdin.Fd()`) using `isatty` detection:
+- **Interactive TTY (Human Terminal)**: Opens the numbered 7-option interactive menu.
+- **Non-TTY Environment (AI Agent, Pipe, CI/CD Script)**: Falls back to standard POSIX help text with zero blocking prompts.
+
+#### Menu Options
+
+```text
+========================================
+       izDeploy Management Console      
+========================================
+1. Status & Resource Telemetry
+2. Deploy Application
+3. Stream Logs
+4. Database Management
+5. Network Tunnel Status
+6. Restart Services
+7. Exit
+```
+
+---
+
+### 16. AI Agent Automation & Operations Playbook
+
+For headless AI agents (Claude Code, Cursor, Antigravity, GitHub Actions runners), izDeploy provides deterministic non-interactive workflows.
+
+Agents must not invoke interactive wizards or blocking commands. Refer to the complete operational specifications:
+- [AI Agent Post-Deploy Operations Playbook](docs/ai_agents/post_deploy_playbook.md): Verification commands, diagnostic triages, and rollbacks.
+- [RFC 7807 Diagnostics Specification](pkg/diagnostics/): Machine-readable error payloads with `agent_actionable` gating.
 
 ---
 

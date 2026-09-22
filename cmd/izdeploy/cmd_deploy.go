@@ -18,11 +18,12 @@ import (
 
 func newDeployCmd() *cobra.Command {
 	var (
-		localMode  bool
-		force      bool
-		imageTag   string
-		configPath string
-		buildArgs  []string
+		localMode    bool
+		force        bool
+		imageTag     string
+		configPath   string
+		strategyFlag string
+		buildArgs    []string
 	)
 
 	cmd := &cobra.Command{
@@ -44,6 +45,15 @@ func newDeployCmd() *cobra.Command {
 
 			if imageTag == "" {
 				imageTag = cfg.Image
+			}
+
+			if strategyFlag != "" {
+				cfg.Strategy = strategyFlag
+				if err := contract.Validate(cfg); err != nil {
+					prob := diagnostics.ClassifyError(err)
+					cmd.PrintErrln(string(prob.JSON()))
+					return errors.New("invalid deployment strategy specified")
+				}
 			}
 
 			if len(buildArgs) > 0 {
@@ -81,7 +91,7 @@ func newDeployCmd() *cobra.Command {
 				cmd.Println("Recommendation: Use a Remote Builder (e.g. GitHub Actions) with Nixpacks --memory-limit 1g.")
 			}
 
-			cmd.Printf("Starting deployment for '%s' (image: %s)...\n", cfg.Name, imageTag)
+			cmd.Printf("Starting deployment for '%s' (image: %s, strategy: %s)...\n", cfg.Name, imageTag, cfg.Strategy)
 
 			backend := mcp.NewLocalBackend(".")
 			res, err := backend.Deploy(ctx, imageTag, force)
@@ -103,6 +113,7 @@ func newDeployCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&localMode, "local", true, "Execute deployment against local container runtime")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Bypass infrastructure lockfile verification gate")
 	cmd.Flags().StringVar(&imageTag, "image", "", "Override container image reference for this deployment")
+	cmd.Flags().StringVar(&strategyFlag, "strategy", "", "Override deployment replacement strategy (zero-downtime, recreate)")
 	cmd.Flags().StringVar(&configPath, "config", ".agent/izdeploy.json", "Path to izDeploy configuration file")
 	cmd.Flags().StringSliceVar(&buildArgs, "build-arg", []string{}, "Set build-time variables (e.g., SSH_KEY=...)")
 

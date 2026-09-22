@@ -11,6 +11,46 @@ IZDEPLOY_USER="izdeploy"
 IZDEPLOY_GROUP="izdeploy"
 IZDEPLOY_HOME="/var/lib/izdeploy"
 WEBHOOK_SECRET=$(openssl rand -hex 16)
+TAILSCALE_KEY="${TAILSCALE_KEY:-}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-}"
+NODE_NAME="${NODE_NAME:-}"
+ENABLE_FAIL2BAN="${ENABLE_FAIL2BAN:-true}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tailscale-key=*)
+      TAILSCALE_KEY="${1#*=}"
+      shift
+      ;;
+    --tailscale-key)
+      TAILSCALE_KEY="$2"
+      shift 2
+      ;;
+    --cf-token=*)
+      CF_TUNNEL_TOKEN="${1#*=}"
+      shift
+      ;;
+    --cf-token)
+      CF_TUNNEL_TOKEN="$2"
+      shift 2
+      ;;
+    --node-name=*)
+      NODE_NAME="${1#*=}"
+      shift
+      ;;
+    --node-name)
+      NODE_NAME="$2"
+      shift 2
+      ;;
+    --no-fail2ban)
+      ENABLE_FAIL2BAN="false"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Root privileges required. Execute with sudo or as root." >&2
@@ -31,7 +71,8 @@ fi
 TOTAL_RAM_MB=$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo)
 echo "Detected RAM: ${TOTAL_RAM_MB}MB"
 
-echo "=== [2/6] Running Data Plane Bootstrap (Docker, UFW, User) ==="
+echo "=== [2/6] Running Data Plane Bootstrap (Docker, UFW, User, Networking) ==="
+export TAILSCALE_KEY CF_TUNNEL_TOKEN NODE_NAME ENABLE_FAIL2BAN
 curl -sSL "https://raw.githubusercontent.com/${REPO}/main/scripts/setup-vps-data-plane.sh" | bash
 
 if [ "${TOTAL_RAM_MB}" -lt 2048 ]; then
@@ -118,6 +159,12 @@ echo "========================================================================="
 echo "VPS IP Address: ${VPS_IP}"
 echo "Webhook URL:    http://${VPS_IP}:8098/webhook"
 echo "Webhook Secret: ${WEBHOOK_SECRET}"
+if [ -n "${TAILSCALE_KEY}" ]; then
+    echo "Tailscale SSH:  ssh root@${NODE_NAME:-$(hostname)} (Port 22 closed to Internet)"
+fi
+if [ -n "${CF_TUNNEL_TOKEN}" ]; then
+    echo "Cloudflare:     Tunnel Active (Ports 80/443 closed to Internet)"
+fi
 echo ""
 echo "========================================================================="
 echo "🤖 AI AGENT HANDOFF: COPY AND PASTE THE LINK BELOW TO YOUR AI ASSISTANT"

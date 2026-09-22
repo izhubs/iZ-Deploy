@@ -36,6 +36,7 @@ var (
 type DeploySpec struct {
 	Name          string            `json:"name"`
 	Image         string            `json:"image"`
+	Strategy      string            `json:"strategy,omitempty"`
 	Port          int               `json:"port"`
 	HostIP        string            `json:"host_ip"`
 	Env           map[string]string `json:"env"`
