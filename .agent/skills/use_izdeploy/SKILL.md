@@ -20,7 +20,7 @@ If the user wants to set up a new project or deploy an existing one using iZ-Dep
 ### Step 1: VPS Bootstrap
 Ask the user to run this on their Ubuntu VPS (must be root):
 ```bash
-curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/install-node.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/izhubs/iz-deploy/main/scripts/install-node.sh | sudo bash
 ```
 
 ### Step 2: Project Initialization

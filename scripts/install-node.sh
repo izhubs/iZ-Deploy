@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # iZ-Deploy Unified VPS Node Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/install-node.sh | sudo bash
+# Usage: curl -sSL https://raw.githubusercontent.com/izhubs/iz-deploy/main/scripts/install-node.sh | sudo bash
 # ==============================================================================
 
 set -euo pipefail
@@ -53,7 +53,7 @@ esac
 # Get latest release tag
 LATEST_TAG=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
 if [ -z "${LATEST_TAG}" ]; then
-    LATEST_TAG="v0.1.0" # Fallback
+    LATEST_TAG="v0.0.3" # Fallback
 fi
 CLEAN_VERSION="${LATEST_TAG#v}"
 ARCHIVE_NAME="izdeploy_${CLEAN_VERSION}_linux_${TARGET_ARCH}.tar.gz"
@@ -64,9 +64,18 @@ TMP_DIR="$(mktemp -d)"
 curl -sSL "${DOWNLOAD_URL}" -o "${TMP_DIR}/${ARCHIVE_NAME}" || wget -qO "${TMP_DIR}/${ARCHIVE_NAME}" "${DOWNLOAD_URL}"
 tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "${TMP_DIR}"
 
-mv "${TMP_DIR}/izdeploy-agent" /usr/local/bin/izdeploy-agent
-mv "${TMP_DIR}/izdeploy-watchdog" /usr/local/bin/izdeploy-watchdog
-chmod +x /usr/local/bin/izdeploy-agent /usr/local/bin/izdeploy-watchdog
+if [ -f "${TMP_DIR}/izdeploy-agent" ]; then
+    mv "${TMP_DIR}/izdeploy-agent" /usr/local/bin/izdeploy-agent
+    chmod +x /usr/local/bin/izdeploy-agent
+fi
+if [ -f "${TMP_DIR}/izdeploy-watchdog" ]; then
+    mv "${TMP_DIR}/izdeploy-watchdog" /usr/local/bin/izdeploy-watchdog
+    chmod +x /usr/local/bin/izdeploy-watchdog
+fi
+if [ -f "${TMP_DIR}/izdeploy" ]; then
+    mv "${TMP_DIR}/izdeploy" /usr/local/bin/izdeploy
+    chmod +x /usr/local/bin/izdeploy
+fi
 rm -rf "${TMP_DIR}"
 
 echo "=== [5/6] Registering Systemd Services ==="

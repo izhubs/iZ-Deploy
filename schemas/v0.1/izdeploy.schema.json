@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/izhubs/izdeploy/main/schemas/v0.1/izdeploy.schema.json",
+  "$id": "https://raw.githubusercontent.com/izhubs/iz-deploy/main/schemas/v0.1/izdeploy.schema.json",
   "title": "izDeploy Application Configuration",
   "description": "Configuration specification for applications deployed with izDeploy v0.1",
   "type": "object",

@@ -12,7 +12,7 @@ Run the unified bootstrap script on a fresh Ubuntu 24.04 LTS instance with root 
 
 ```bash
 # Downloads agent, installs Docker/UFW, configures zRAM (if RAM < 2GB), and starts the daemon.
-curl -sSL https://raw.githubusercontent.com/izhubs/izdeploy/main/scripts/install-node.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/izhubs/iz-deploy/main/scripts/install-node.sh | sudo bash
 ```
 
 ### Phase 2: Initialize Your App Repository (Developer Machine)

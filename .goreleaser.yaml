@@ -57,6 +57,8 @@ archives:
   - id: izdeploy
     ids:
       - izdeploy
+      - izdeploy-agent
+      - izdeploy-watchdog
     name_template: "izdeploy_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
