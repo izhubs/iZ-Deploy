@@ -28,3 +28,6 @@ Thumbs.db
 # Local configuration overrides
 .env.local
 .agent/izdeploy.lock
+
+# PocketBase data
+pb_data/
