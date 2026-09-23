@@ -193,6 +193,38 @@ func queryDaemonLogs(ctx context.Context, appName string, tail int) (string, err
 	return strings.Join(logResponse.Lines, "\n"), nil
 }
 
+// extractNewLines identifies lines in currentLogs that appear after the overlap with lastLogs.
+func extractNewLines(lastLogs, currentLogs string) string {
+	if lastLogs == "" {
+		return currentLogs
+	}
+	if currentLogs == "" || lastLogs == currentLogs {
+		return ""
+	}
+
+	oldLines := strings.Split(lastLogs, "\n")
+	curLines := strings.Split(currentLogs, "\n")
+
+	maxOverlap := 0
+	for i := 1; i <= len(oldLines) && i <= len(curLines); i++ {
+		match := true
+		for j := 0; j < i; j++ {
+			if oldLines[len(oldLines)-i+j] != curLines[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			maxOverlap = i
+		}
+	}
+
+	if maxOverlap < len(curLines) {
+		return strings.Join(curLines[maxOverlap:], "\n")
+	}
+	return ""
+}
+
 // runFollowLogs maintains periodic polling and outputs log events until context cancellation or OS interrupt.
 func runFollowLogs(ctx context.Context, cmd *cobra.Command, appName string, tail int, localMode bool, projectDir string) error {
 	sigChan := make(chan os.Signal, 1)
@@ -206,6 +238,8 @@ func runFollowLogs(ctx context.Context, cmd *cobra.Command, appName string, tail
 	if initialLogs != "" {
 		cmd.Println(initialLogs)
 	}
+
+	lastLogs := initialLogs
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -221,8 +255,10 @@ func runFollowLogs(ctx context.Context, cmd *cobra.Command, appName string, tail
 			if err != nil {
 				return err
 			}
-			if updatedLogs != "" {
-				cmd.Println(updatedLogs)
+			newLogs := extractNewLines(lastLogs, updatedLogs)
+			if newLogs != "" {
+				cmd.Println(newLogs)
+				lastLogs = updatedLogs
 			}
 		}
 	}

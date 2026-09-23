@@ -57,9 +57,16 @@ func (mc *MetricsCache) Set(containerID string, metrics *ContainerMetrics, ttl t
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 
+	now := time.Now()
+	for id, entry := range mc.entries {
+		if now.Sub(entry.expiresAt) > 30*time.Minute {
+			delete(mc.entries, id)
+		}
+	}
+
 	mc.entries[containerID] = metricsCacheEntry{
 		metrics:   metrics,
-		expiresAt: time.Now().Add(ttl),
+		expiresAt: now.Add(ttl),
 	}
 }
 

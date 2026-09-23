@@ -94,6 +94,8 @@ func ParseConfigBytes(data []byte) (*AppConfig, error) {
 		return nil, errors.New("configuration file contains extraneous trailing tokens")
 	}
 
+	cfg.ApplyDefaults()
+
 	return &cfg, nil
 }
 

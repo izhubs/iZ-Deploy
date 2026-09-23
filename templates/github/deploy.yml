@@ -63,7 +63,7 @@ jobs:
           docker push "${IMAGE_LATEST}"
 
       - name: Trigger izDeploy Host Agent Webhook
-        if: env.IZDEPLOY_WEBHOOK_URL != ''
+        if: ${{ secrets.IZDEPLOY_WEBHOOK_URL != '' }}
         env:
           IZDEPLOY_WEBHOOK_URL: ${{ secrets.IZDEPLOY_WEBHOOK_URL }}
           IZDEPLOY_AUTH_TOKEN: ${{ secrets.IZDEPLOY_AUTH_TOKEN }}
@@ -73,7 +73,7 @@ jobs:
             -X POST "${IZDEPLOY_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${IZDEPLOY_AUTH_TOKEN}" \
-            -d "{\"image\": \"${IMAGE_TAG}\", \"sha\": \"${{ github.sha }}\", \"actor\": \"${{ github.actor }}\"}")
+            -d "{\"app\": \"${{ github.event.repository.name }}\", \"image\": \"${IMAGE_TAG}\", \"sha\": \"${{ github.sha }}\", \"actor\": \"${{ github.actor }}\"}")
 
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Webhook delivered successfully (HTTP $HTTP_STATUS)"

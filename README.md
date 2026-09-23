@@ -2,6 +2,10 @@
 
 izDeploy is a lightweight application deployment engine and daemon optimized for resource-constrained Linux servers (>=512MB RAM). It provides an embedded Model Context Protocol (MCP) server, static SHA-256 infrastructure lockfiles, and zero-downtime routing swaps for containerized workloads.
 
+> [!TIP]
+> **Looking for a Graphical Web Dashboard?**  
+> If you prefer a visual, zero-terminal management experience with 1-click curated app deployments (Activepieces, Supabase, WordPress, Flowise), VietQR payments, and multi-VPS orchestration (BYOS), visit our private dashboard repository at [izhubs/izdeploy-ui](https://github.com/izhubs/izdeploy-ui) (or use the hosted console at [cloud.izdeploy.live](https://cloud.izdeploy.live)). This core repository (`iz-deploy`) is the open-source CLI, daemon, and lightweight engine for developers and AI coding agents.
+
 ---
 
 ## Quick Setup (Under 3 Minutes)

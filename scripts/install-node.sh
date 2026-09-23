@@ -128,7 +128,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
-User=root
+User=izdeploy
 ExecStart=/usr/local/bin/izdeploy-agent
 Restart=always
 RestartSec=5
@@ -157,7 +157,7 @@ echo "========================================================================="
 echo "🔒 SECURITY CREDENTIALS (SAVE THIS!)"
 echo "========================================================================="
 echo "VPS IP Address: ${VPS_IP}"
-echo "Webhook URL:    http://${VPS_IP}:8098/webhook"
+echo "Webhook URL:    http://${VPS_IP}:8098/webhook (Note: requires reverse proxy, do not expose directly)"
 echo "Webhook Secret: ${WEBHOOK_SECRET}"
 if [ -n "${TAILSCALE_KEY}" ]; then
     echo "Tailscale SSH:  ssh root@${NODE_NAME:-$(hostname)} (Port 22 closed to Internet)"

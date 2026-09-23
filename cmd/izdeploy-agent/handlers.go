@@ -3,10 +3,12 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -118,6 +120,21 @@ func (s *AgentServer) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if req.Name == "" || req.Image == "" || req.Port <= 0 {
 		writeError(w, http.StatusBadRequest, "fields 'name', 'image', and 'port' are required")
 		return
+	}
+
+	if matched, _ := regexp.MatchString(`^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$`, req.Name); !matched {
+		writeError(w, http.StatusBadRequest, "field 'name' must conform to DNS RFC 1123")
+		return
+	}
+
+	bannedVolumes := []string{"/", "/etc", "/var/run", "/root", "/proc", "/sys"}
+	for hostPath := range req.Volumes {
+		for _, banned := range bannedVolumes {
+			if hostPath == banned || strings.HasPrefix(hostPath, banned+"/") {
+				writeError(w, http.StatusBadRequest, "volume host path '"+hostPath+"' is not allowed")
+				return
+			}
+		}
 	}
 
 	containerID, err := s.executeDeployment(r.Context(), req)
@@ -374,31 +391,42 @@ func (s *AgentServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	secret := os.Getenv("IZDEPLOY_WEBHOOK_SECRET")
-	if secret != "" {
-		token := ""
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			token = strings.TrimPrefix(authHeader, "Bearer ")
-		} else if authHeader != "" {
-			token = authHeader
-		}
+	if secret == "" {
+		prob := diagnostics.NewProblem(
+			diagnostics.UrnPrefix+"forbidden",
+			"Forbidden",
+			http.StatusForbidden,
+			"Webhook secret is not configured on the server",
+			false,
+			"ERR_FORBIDDEN",
+		)
+		writeProblem(w, prob)
+		return
+	}
 
-		if token == "" {
-			token = r.Header.Get("X-Izdeploy-Token")
-		}
+	token := ""
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token = strings.TrimPrefix(authHeader, "Bearer ")
+	} else if authHeader != "" {
+		token = authHeader
+	}
 
-		if token != secret {
-			prob := diagnostics.NewProblem(
-				diagnostics.UrnPrefix+"unauthorized",
-				"Unauthorized",
-				http.StatusUnauthorized,
-				"Invalid or missing webhook authentication token",
-				false,
-				"ERR_UNAUTHORIZED",
-			)
-			writeProblem(w, prob)
-			return
-		}
+	if token == "" {
+		token = r.Header.Get("X-Izdeploy-Token")
+	}
+
+	if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+		prob := diagnostics.NewProblem(
+			diagnostics.UrnPrefix+"unauthorized",
+			"Unauthorized",
+			http.StatusUnauthorized,
+			"Invalid or missing webhook authentication token",
+			false,
+			"ERR_UNAUTHORIZED",
+		)
+		writeProblem(w, prob)
+		return
 	}
 
 	var payload WebhookPayload

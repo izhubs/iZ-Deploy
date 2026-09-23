@@ -226,7 +226,7 @@ echo "=== [7/7] Setting up Automated Docker GC ==="
 CRON_FILE="/etc/cron.weekly/izdeploy-docker-gc"
 cat <<'EOF' > "${CRON_FILE}"
 #!/usr/bin/env bash
-docker system prune -af --volumes --filter "until=168h" >/var/log/izdeploy/docker-gc.log 2>&1
+docker system prune -af --filter "until=168h" >/var/log/izdeploy/docker-gc.log 2>&1
 EOF
 chmod +x "${CRON_FILE}"
 echo "Docker GC cronjob installed at ${CRON_FILE}."

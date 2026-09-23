@@ -24,6 +24,5 @@
       "image": "kong:2.8.1",
       "internal_ports": [8000, 8443]
     }
-    // Note: Truncated for demonstration purposes. A full Supabase stack has many more services.
   ]
 }

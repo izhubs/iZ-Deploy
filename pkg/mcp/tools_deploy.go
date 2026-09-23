@@ -28,8 +28,11 @@ func (s *Server) registerDeployTool() {
 
 	s.mcpServer.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		imageTag, err := req.RequireString("image_tag")
-		if err != nil || strings.TrimSpace(imageTag) == "" {
+		if err != nil {
 			return FormatErrorResult(err), nil
+		}
+		if strings.TrimSpace(imageTag) == "" {
+			return FormatErrorResult(errors.New("image_tag cannot be empty")), nil
 		}
 
 		force := req.GetBool("force", false)
